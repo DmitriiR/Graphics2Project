@@ -1,17 +1,13 @@
-// D3D LAB 1a "Line Land".
-// Author: L.Norri CD DRX, FullSail University
+// D3D Graphics 2 project
+// Author: Dmitrii Zyrianov
 
-// Introduction:
-// Welcome to the first lab of the Direct3D Graphics Programming class.
-// This is the ONLY guided lab in this course! 
-// Future labs will demand the habits & foundation you develop right now!  
-// It is CRITICAL that you follow each and every step. ESPECIALLY THE READING!!!
-
-// TO BEGIN: Open the word document that acompanies this lab and start from the top.
 
 //************************************************************
 //************ INCLUDES & DEFINES ****************************
 //************************************************************
+#pragma comment (lib, "dinput8.lib")
+#pragma comment (lib, "dxguid.lib")
+#pragma comment (lib, "d3d11.lib")
 
 
 #include <iostream>
@@ -27,37 +23,72 @@
 #include "..\Assets\Textures\Cowboy.h"
 #include "Grid.h"
 #include "..\Assets\Textures\numbers_test.h"
+#include <DirectXMath.h>
+#include "DDSTextureLoader.h"
+#include <dinput.h>
 
 using namespace std;
-// BEGIN PART 1
-// TODO: PART 1 STEP 1a
+using namespace DirectX;
+
 #include <d3d11.h>
-#pragma comment(lib,"d3d11.lib")
 
-// TODO: PART 1 STEP 1b
-//#include <DirectXMath.h>
+
 #include "mathlib.h"
-//using namespace DirectX;
-// TODO: PART 2 STEP 6
 
-#define BACKBUFFER_WIDTH	500
-#define BACKBUFFER_HEIGHT	500
+
+#define BACKBUFFER_WIDTH	1280
+#define BACKBUFFER_HEIGHT	768
+
+
+
+
+//************************************************************
+//************ GLOBAL DEFINES     ****************************
+//************************************************************
+
+POINT cursor_previous;
+POINT cursor_current;
+IDXGISwapChain *chain = nullptr;
+
+/////////// DIRECT INPUT
+IDirectInputDevice8* DIKeyboard;
+IDirectInputDevice8* DIMouse;
+
+DIMOUSESTATE mouseLastState;
+LPDIRECTINPUT8 DirectInput;
+
+float rotx = 0;
+float rotz = 0;
+float scaleX = 1.0f;
+float scaleY = 1.0f;
+
+XMMATRIX Rotationx;
+XMMATRIX Rotationz;
+/////////// DERECT INPUT END
+
+////////////// CAMERA
+XMVECTOR DefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+XMVECTOR DefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+XMVECTOR camForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+XMVECTOR camRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+
+XMMATRIX camRotationMatrix;
+XMMATRIX groundWorld;
+
+float moveLeftRight = 0.0f;
+float moveBackForward = 0.0f;
+
+float camYaw = 0.0f;
+float camPitch = 0.0f;
+///////////// CAMERA END
+
+
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
 //************************************************************
 
-// this needs to match 
-//The input-layout description
-//D3D11_INPUT_ELEMENT_DESC layout[] =
-//{
-//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-//	{ "COLOR",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-//};
 
-POINT cursor_previous;
-POINT cursor_current;
-IDXGISwapChain *chain = nullptr;
 
 class DEMO_APP
 {
@@ -109,9 +140,11 @@ class DEMO_APP
 	MY_MATRIX_4X4 SV_Perspective;
 
 
-
+	// old declaration
 	MY_MATRIX_4X4 Rotate = IdentityMatrix();
 	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
+	// new direct input 
+	XMMATRIX Roatation = XMMatrixIdentity();
 
 	ID3D11BlendState * blendState;
 	ID3D11BlendState* Transparency;
@@ -154,7 +187,12 @@ public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
 	bool ShutDown();
-	void ResizeWindow();
+	void ResizeWindow(); // prototype the resize 
+	void UpdateCamera(); // prototype the camera function
+	bool InitializeDirectInput(HINSTANCE hInstance); // initialize the direct input
+	void DetectInput(double time);
+	void MakeCube();
+	void MakeGrid();
 };
 
 
@@ -250,18 +288,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 #endif
 
 	
-	// TODO: PART 1 STEP 3b
-	
-	
 	// fill the back buffer
 	hr = chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&chainBuffer);
 
 	//Create the Render Target
 	hr = device->CreateRenderTargetView(chainBuffer, NULL, &renderTargetView);
-
-//	texture->Release();
-
-	// TODO: PART 1 STEP 5
 
 	// this a window in the backbuffer 
 	viewPort.TopLeftX = 0;
@@ -278,7 +309,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 
 
-
+// MAKES CUVBE buffers
 D3D11_BUFFER_DESC verteciesBufferDesc_cube;
 ZeroMemory(&verteciesBufferDesc_cube, sizeof(verteciesBufferDesc_cube));
 
@@ -300,24 +331,10 @@ hr = device->CreateBuffer(&verteciesBufferDesc_cube, &vertexBufferData_cube, &Ve
 
 
 //////////////////////////////////////////////////
+MakeCube();///////////////////////////////////////
+//////////////////////////////////////////////////
 
-D3D11_BUFFER_DESC indexBufferData_cube = { 0 };
-indexBufferData_cube.Usage = D3D11_USAGE_IMMUTABLE;
-indexBufferData_cube.BindFlags = D3D11_BIND_INDEX_BUFFER;
-indexBufferData_cube.ByteWidth = sizeof(Cube_indicies);
-indexBufferData_cube.MiscFlags = 0;
-indexBufferData_cube.CPUAccessFlags = 0;
-indexBufferData_cube.StructureByteStride = 0;
-
-D3D11_SUBRESOURCE_DATA indexBufferDataSR_cube = { 0 };
-indexBufferDataSR_cube.pSysMem = Cube_indicies;
-indexBufferDataSR_cube.SysMemPitch = 0;
-indexBufferDataSR_cube.SysMemSlicePitch = 0;
-
-hr = device->CreateBuffer(&indexBufferData_cube, &indexBufferDataSR_cube, &IndexBufferCube);
-
-device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
-device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders 
+// GRID Stuff /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 D3D11_INPUT_ELEMENT_DESC vLayout[] =
 {
@@ -326,12 +343,8 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	{ "NRM", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////// drawing star END
 
-// GRID Stuff /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-	// TODO: PART 3 STEP 3
+// TODO: PART 3 STEP 3
 	D3D11_BUFFER_DESC constBufferDesc = { 0 };
 	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -443,71 +456,9 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	
 	SAFE_RELEASE(tex);
 
-	// BUILDING THE GRID 
-
-	float x = -1.0f;
-	float z = 1.0f;
-
-	for (UINT i = 0; i < 21; i++)
-	{
-		// back row
-		grid_data_new[i].pos[0] = x;// x
-		grid_data_new[i].pos[1] = 0.0f;// y
-		grid_data_new[i].pos[2] = 1.0f;// z
-
-		// front row
-		grid_data_new[i + 21].pos[0] = x;// x
-		grid_data_new[i + 21].pos[1] = 0.0f;// y
-		grid_data_new[i + 21].pos[2] = -1.0f;// z
-		x += 0.1;
-
-		// left row 
-		grid_data_new[i + 42].pos[0] = -1.0f;// x
-		grid_data_new[i + 42].pos[1] = 0.0f;// y
-		grid_data_new[i + 42].pos[2] = z;// z
-
-		// right row
-		grid_data_new[i + 63].pos[0] = 1.0f;// x
-		grid_data_new[i + 63].pos[1] = 0.0f;// y
-		grid_data_new[i + 63].pos[2] = z;// z
-		z -= 0.1f;
-	};
-
-	D3D11_BUFFER_DESC verteciesBufferDesc_grid;
-	ZeroMemory(&verteciesBufferDesc_grid, sizeof(verteciesBufferDesc_grid));
-
-	verteciesBufferDesc_grid.Usage = D3D11_USAGE_IMMUTABLE;
-	verteciesBufferDesc_grid.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	verteciesBufferDesc_grid.ByteWidth = sizeof(grid_data_new);
-	verteciesBufferDesc_grid.MiscFlags = 0;
-	verteciesBufferDesc_grid.CPUAccessFlags = 0;
-	verteciesBufferDesc_grid.StructureByteStride = 0;
-
-	D3D11_SUBRESOURCE_DATA vertexBufferData_grid;
-	ZeroMemory(&vertexBufferData_grid, sizeof(vertexBufferData_grid));
-
-	vertexBufferData_grid.pSysMem = grid_data_new;
-	vertexBufferData_grid.SysMemPitch = 0;
-	vertexBufferData_grid.SysMemSlicePitch = 0;
-
-	hr = device->CreateBuffer(&verteciesBufferDesc_grid, &vertexBufferData_grid, &VertBufferGrid);
-
-
-	D3D11_BUFFER_DESC indexBufferData_grid = { 0 };
-	indexBufferData_grid.Usage = D3D11_USAGE_IMMUTABLE;
-	indexBufferData_grid.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferData_grid.ByteWidth = sizeof(grid_indicies_new);
-	indexBufferData_grid.MiscFlags = 0;
-	indexBufferData_grid.CPUAccessFlags = 0;
-	indexBufferData_grid.StructureByteStride = 0;
-
-	D3D11_SUBRESOURCE_DATA indexBufferDataSR_grid = { 0 };
-	indexBufferDataSR_grid.pSysMem = grid_indicies_new;
-	indexBufferDataSR_grid.SysMemPitch = 0;
-	indexBufferDataSR_grid.SysMemSlicePitch = 0;
-
-	hr = device->CreateBuffer(&indexBufferData_grid, &indexBufferDataSR_grid, &IndexBufferGrid);
-
+	///////// MAKE THE GRID ///////////////////////////////////////////////////////////// 
+	MakeGrid();
+	/////////////////////////////////////////////////////////////////////////////////////
 
 	device->CreatePixelShader(PS_Grid, sizeof(PS_Grid), nullptr, &PS_Grid_pointer);
 	device->CreateVertexShader(VS_Grid, sizeof(VS_Grid), nullptr, &VSGrid_p);
@@ -659,44 +610,66 @@ bool DEMO_APP::Run()
 	TranslateMatrix = Translate(IdentityMatrix(), moveX, moveY, moveZ);
 
 
-	float dy = 0.0f;
-	float dx = 0.0f;
-	if (GetAsyncKeyState(VK_RBUTTON))
-	{
-		GetCursorPos(&cursor_current);
+//	float dy = 0.0f;
+//	float dx = 0.0f;
+//	if (GetAsyncKeyState(VK_RBUTTON))
+//	{
+//		GetCursorPos(&cursor_current);
+//
+//		dx = cursor_previous.x - cursor_current.x;
+//		dy = cursor_previous.y - cursor_current.y;
+//
+//		if (dx < 0.0f)
+//		{
+//			Rotate = ViewMatrix_RoateY(Rotate, DegToRad( dx ));
+//
+//		}
+//		else if (dx > 0.0f)
+//		{
+//			Rotate = ViewMatrix_RoateY(Rotate, DegToRad(dx ));
+//
+//
+//		} else 
+//
+//		if (dy < 0.0f)
+//		{
+//			Rotate = ViewMatrix_RoateX(Rotate, DegToRad(dy ));
+//
+//		}
+//		else
+//		if (dy > 0.0f)
+//		{
+//			Rotate = ViewMatrix_RoateX(Rotate, DegToRad( dy ));
+//		}
+//		cursor_previous = cursor_current;
+//
+//	}
+	DetectInput(deltatime);
+//
+//	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+//	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+//	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+//
+//	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+//	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+//	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 
-		dx = cursor_previous.x - cursor_current.x;
-		dy = cursor_previous.y - cursor_current.y;
-
-		if (dx < 0.0f)
-		{
-			Rotate = ViewMatrix_RoateY(Rotate, DegToRad( dx ));
-
-		}
-		else if (dx > 0.0f)
-		{
-			Rotate = ViewMatrix_RoateY(Rotate, DegToRad(dx ));
+//	Roatation = XMMatrixRotationAxis(rotyaxis, rot);
+//	Rotationx = XMMatrixRotationAxis(rotxaxis, rotx);
+//	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
+//	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+//
+//	//Set cube1's world space using the transformations
+//	cube1World = Translation * Rotation * Rotationx * Rotationz;
 
 
-		} else 
 
-		if (dy < 0.0f)
-		{
-			Rotate = ViewMatrix_RoateX(Rotate, DegToRad(dy ));
 
-		}
-		else
-		if (dy > 0.0f)
-		{
-			Rotate = ViewMatrix_RoateX(Rotate, DegToRad( dy ));
-		}
-		cursor_previous = cursor_current;
 
-	}
+
 
 	//Rotate = ViewMatrix_RoateX(Rotate, DegToRad(0.0f));            // rotate
 	TranslateMatrix = Translate(TranslateMatrix_Save, moveX, moveY, moveZ);
-
 	//	TranslateMatrix = Translate(TranslateMatrix, moveX, moveY, moveZ); // translation 
 	SV_ViewMatrix = Matrix_Matrix_Multiply(TranslateMatrix, Rotate);
 	SV_ViewMatrix = Inverse(SV_ViewMatrix);                          //   <<<<<<< VIEW
@@ -704,9 +677,9 @@ bool DEMO_APP::Run()
 	
 
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is thwre the Z bugger will go 
-	// TODO: PART 1 STEP 7b
-	//deviceContext->RSSetViewports(1, &viewPort);
-	// TODO: PART 1 STEP 7c
+
+
+	////////////////// BACKGROUND COLOR reset
 	float color_array[4] = { 0, 0, 0.3f, 0.4f };
 	deviceContext->ClearRenderTargetView(renderTargetView, color_array);
 
@@ -916,8 +889,6 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(CWcullMode);
 	SAFE_RELEASE(constantBuffer_offset); 
 	SAFE_RELEASE(constantBuffer_Camera);
-	
-
 	SAFE_RELEASE(IndexBufferGrid);
 	SAFE_RELEASE(VS_Buffer);
 	SAFE_RELEASE(PS_Buffer);
@@ -927,6 +898,9 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(Transparency);
 	SAFE_RELEASE(CWcullMode);
 
+	DIKeyboard->Unacquire();
+	DIMouse->Unacquire();
+	DirectInput->Release();
 
 	
 	UnregisterClass(L"DirectXApplication", application);
@@ -950,13 +924,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	DEMO_APP myApp(hInstance, (WNDPROC)WndProc);
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	theApp = &myApp;
+
 	// initialize the input stuff
-//	if (!InitDirectInput(hInstance))
-//	{
-//		MessageBox(0, L"Direct Input Initialization - Failed",
-//			L"Error", MB_OK);
-//		return 0;
-//	}
+	if (!theApp->InitializeDirectInput(hInstance))
+	{
+		MessageBox(0, L"Direct Input Initialization - Failed",
+			L"Error", MB_OK);
+		return 0;
+	}
 
 
 	while (msg.message != WM_QUIT && myApp.Run())
@@ -979,6 +954,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	myApp.ShutDown();
 	return 0;
 }
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	if (GetAsyncKeyState(VK_ESCAPE))
@@ -1002,6 +978,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //********************* END WARNING ************************//
 
 
+// changes the size of the window
 void DEMO_APP::ResizeWindow()
 {
 	if (chain)
@@ -1024,14 +1001,6 @@ void DEMO_APP::ResizeWindow()
 
 		device->CreateRenderTargetView(pBuffer, NULL, &renderTargetView);
 	
-		
-		//	ID3D11RenderTargetView * tempView = nullptr;
-		//deviceContext->OMSetRenderTargets(1, &tempView, nullptr);
-		//	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL);
-
-
-
-
 		D3D11_TEXTURE2D_DESC width_height;
 		D3D11_VIEWPORT vp;
 		pBuffer->GetDesc(&width_height);
@@ -1071,5 +1040,196 @@ void DEMO_APP::ResizeWindow()
 
 		Aspect = vp.Height / vp.Width;
 	}
+
+}
+
+bool DEMO_APP::InitializeDirectInput(HINSTANCE hInstance)
+{
+
+	HRESULT hr = DirectInput8Create(hInstance,
+									DIRECTINPUT_VERSION,
+									IID_IDirectInput8,
+									(void**)&DirectInput,
+									NULL);
+
+	hr = DirectInput->CreateDevice(GUID_SysKeyboard,
+									&DIKeyboard,
+									NULL);
+
+	hr = DirectInput->CreateDevice(GUID_SysMouse,
+									&DIMouse,
+									NULL);
+
+	hr = DIKeyboard->SetDataFormat(&c_dfDIKeyboard);
+	hr = DIKeyboard->SetCooperativeLevel(window, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
+
+	hr = DIMouse->SetDataFormat(&c_dfDIMouse);
+	hr = DIMouse->SetCooperativeLevel(window, DISCL_EXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
+
+	return true;
+
+}
+
+void DEMO_APP::DetectInput(double time)
+{
+	DIMOUSESTATE mouseCurrState;
+	//LONG lX;
+	//LONG lY;
+	//LONG lZ;
+	//BYTE rgbButtons[4];
+
+	BYTE keyboardState[256];
+
+	DIKeyboard->Acquire();
+	DIMouse->Acquire();
+	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
+
+	DIKeyboard->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
+
+
+	if (keyboardState[DIK_ESCAPE] & 0x80)
+		PostMessage(window, WM_DESTROY, 0, 0);
+
+	if (keyboardState[DIK_LEFT] & 0x80)
+	{
+		rotz -= 1.0f * time;
+	}
+	if (keyboardState[DIK_RIGHT] & 0x80)
+	{
+		rotz += 1.0f * time;
+	}
+	if (keyboardState[DIK_UP] & 0x80)
+	{
+		rotx += 1.0f * time;
+	}
+	if (keyboardState[DIK_DOWN] & 0x80)
+	{
+		rotx -= 1.0f * time;
+	}
+	if (mouseCurrState.lX != mouseLastState.lX)
+	{
+		scaleX -= (mouseCurrState.lX * 0.001f);
+	}
+	if (mouseCurrState.lY != mouseLastState.lY)
+	{
+		scaleY -= (mouseCurrState.lY * 0.001f);
+	}
+
+	if (rotx > 6.28)
+		rotx -= 6.28;
+	else if (rotx < 0)
+		rotx = 6.28 + rotx;
+
+	if (rotz > 6.28)
+		rotz -= 6.28;
+	else if (rotz < 0)
+		rotz = 6.28 + rotz;
+
+	mouseLastState = mouseCurrState;
+
+	return;
+
+
+}
+
+void DEMO_APP::UpdateCamera()
+{
+
+//	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
+//	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
+//	camTarget = XMVector3Normalize(camTarget);
+
+
+
+}
+
+void DEMO_APP::MakeCube()
+{
+	D3D11_BUFFER_DESC indexBufferData_cube = { 0 };
+	indexBufferData_cube.Usage = D3D11_USAGE_IMMUTABLE;
+	indexBufferData_cube.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_cube.ByteWidth = sizeof(Cube_indicies);
+	indexBufferData_cube.MiscFlags = 0;
+	indexBufferData_cube.CPUAccessFlags = 0;
+	indexBufferData_cube.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA indexBufferDataSR_cube = { 0 };
+	indexBufferDataSR_cube.pSysMem = Cube_indicies;
+	indexBufferDataSR_cube.SysMemPitch = 0;
+	indexBufferDataSR_cube.SysMemSlicePitch = 0;
+
+	HRESULT hr = device->CreateBuffer(&indexBufferData_cube, &indexBufferDataSR_cube, &IndexBufferCube);
+
+	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
+	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders 
+
+	
+}
+
+void DEMO_APP::MakeGrid()
+{
+	
+	float x = -1.0f;
+	float z = 1.0f;
+
+	for (UINT i = 0; i < 21; i++)
+	{
+		// back row
+		grid_data_new[i].pos[0] = x;// x
+		grid_data_new[i].pos[1] = 0.0f;// y
+		grid_data_new[i].pos[2] = 1.0f;// z
+
+		// front row
+		grid_data_new[i + 21].pos[0] = x;// x
+		grid_data_new[i + 21].pos[1] = 0.0f;// y
+		grid_data_new[i + 21].pos[2] = -1.0f;// z
+		x += 0.1;
+
+		// left row 
+		grid_data_new[i + 42].pos[0] = -1.0f;// x
+		grid_data_new[i + 42].pos[1] = 0.0f;// y
+		grid_data_new[i + 42].pos[2] = z;// z
+
+		// right row
+		grid_data_new[i + 63].pos[0] = 1.0f;// x
+		grid_data_new[i + 63].pos[1] = 0.0f;// y
+		grid_data_new[i + 63].pos[2] = z;// z
+		z -= 0.1f;
+	};
+
+	D3D11_BUFFER_DESC verteciesBufferDesc_grid;
+	ZeroMemory(&verteciesBufferDesc_grid, sizeof(verteciesBufferDesc_grid));
+
+	verteciesBufferDesc_grid.Usage = D3D11_USAGE_IMMUTABLE;
+	verteciesBufferDesc_grid.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	verteciesBufferDesc_grid.ByteWidth = sizeof(grid_data_new);
+	verteciesBufferDesc_grid.MiscFlags = 0;
+	verteciesBufferDesc_grid.CPUAccessFlags = 0;
+	verteciesBufferDesc_grid.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData_grid;
+	ZeroMemory(&vertexBufferData_grid, sizeof(vertexBufferData_grid));
+
+	vertexBufferData_grid.pSysMem = grid_data_new;
+	vertexBufferData_grid.SysMemPitch = 0;
+	vertexBufferData_grid.SysMemSlicePitch = 0;
+
+	HRESULT hr = device->CreateBuffer(&verteciesBufferDesc_grid, &vertexBufferData_grid, &VertBufferGrid);
+
+
+	D3D11_BUFFER_DESC indexBufferData_grid = { 0 };
+	indexBufferData_grid.Usage = D3D11_USAGE_IMMUTABLE;
+	indexBufferData_grid.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_grid.ByteWidth = sizeof(grid_indicies_new);
+	indexBufferData_grid.MiscFlags = 0;
+	indexBufferData_grid.CPUAccessFlags = 0;
+	indexBufferData_grid.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA indexBufferDataSR_grid = { 0 };
+	indexBufferDataSR_grid.pSysMem = grid_indicies_new;
+	indexBufferDataSR_grid.SysMemPitch = 0;
+	indexBufferDataSR_grid.SysMemSlicePitch = 0;
+
+	hr = device->CreateBuffer(&indexBufferData_grid, &indexBufferDataSR_grid, &IndexBufferGrid);
 
 }

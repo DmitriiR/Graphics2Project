@@ -159,6 +159,7 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="XTime.cpp" />
   </ItemGroup>
@@ -167,6 +168,7 @@
     <ClInclude Include="..\Assets\Assets\Textures\Cowboy.h" />
     <ClInclude Include="..\Assets\Textures\numbers_test.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="defines.h" />
     <ClInclude Include="Grid.h" />
     <ClInclude Include="mathlib.h" />
