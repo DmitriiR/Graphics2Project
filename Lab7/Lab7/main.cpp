@@ -55,8 +55,8 @@ using namespace std;
 //	{ "COLOR",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 //};
 
-POINT cursor_position;
 POINT cursor_previous;
+POINT cursor_current;
 IDXGISwapChain *chain = nullptr;
 
 class DEMO_APP
@@ -74,45 +74,49 @@ class DEMO_APP
 	ID3D11InputLayout* pInputLayout = nullptr;
 	D3D11_VIEWPORT viewPort;
 	DXGI_MODE_DESC bufferDesctoFill;
-	// TODO: PART 2 STEP 2
-	//SIMPLE_VERTEX* VS_Buffer; // creating the vertex buffer.
-	ID3D11Buffer* VertBuffer;
-	ID3D11Buffer* VertBuffer_triangle;
-	// makingVer fuffer for the triangle 
+	
+	ID3D11Buffer * VertBuffer;
+	ID3D11Buffer * VertBuffer_triangle;
 	ID3D11Buffer * VertBufferStar;
 	ID3D11Buffer * VertBufferCube; // << unload this
 	ID3D11Buffer * VertBufferGrid;
 	ID3D11Buffer * IndexBufferStar;
 	ID3D11Buffer * IndexBufferCube;  //<<<<  make this safe
 	ID3D11Buffer * IndexBufferGrid;
+	ID3D11Buffer * VS_Buffer = nullptr;
+	ID3D11Buffer * PS_Buffer = nullptr;
+	ID3D11Buffer * constantBuffer;
+	ID3D11Buffer * constantBuffer_offset; //<< clear later
+	ID3D11Buffer * constantBuffer_Camera;
+
 	ID3D11Resource *chainBuffer = nullptr;
-
-
 	ID3D11ShaderResourceView* CubesTexture = nullptr;
 	ID3D11SamplerState* CubesTexSamplerState = nullptr;
 
-	// BEGIN PART 5
-	// TODO: PART 5 STEP 1
-	// TODO: PART 2 STEP 4
 	ID3D11PixelShader* PS = nullptr;
+	ID3D11PixelShader* PS_Grid_pointer = nullptr;
 	ID3D11VertexShader* VS = nullptr;
 	ID3D11VertexShader* VSStar = nullptr;
 	ID3D11VertexShader* VSGrid_p = nullptr;
 
-	ID3D11Buffer *VS_Buffer = nullptr;
-	ID3D11Buffer *PS_Buffer = nullptr;
 	ID3D11DepthStencilView* pDSV;
+
 	ID3D11Texture2D* pDepthStencil = NULL;
+
 	// All Shader Variables (Always Pre-fixed by “SV_”)
 	MY_MATRIX_4X4 SV_WorldMatrix;
 	MY_MATRIX_4X4 SV_ViewMatrix;
 	MY_MATRIX_4X4 SV_Perspective;
 
+
+
+	MY_MATRIX_4X4 Rotate = IdentityMatrix();
+	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
+
 	ID3D11BlendState * blendState;
-	ID3D11RasterizerState* rasterizerState;
-	ID3D11PixelShader* PS_Grid_pointer = nullptr;
-	
 	ID3D11BlendState* Transparency;
+	
+	ID3D11RasterizerState* rasterizerState;
 	ID3D11RasterizerState* CCWcullMode;
 	ID3D11RasterizerState* CWcullMode;
 
@@ -131,9 +135,6 @@ class DEMO_APP
 	float offset;
 	// BEGIN PART 3
 	// TODO: PART 3 STEP 1
-	ID3D11Buffer *constantBuffer;
-	ID3D11Buffer *constantBuffer_offset; //<< clear later
-	ID3D11Buffer *constantBuffer_Camera;
 	XTime xTime;
 	// TODO: PART 3 STEP 2b
 
@@ -439,6 +440,8 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	shaderResourceView_desc.Texture2D.MostDetailedMip = 0;
 	shaderResourceView_desc.Texture2D.MipLevels = numbers_test_numlevels;
 	device->CreateShaderResourceView(tex, NULL, &CubesTexture);
+	
+	SAFE_RELEASE(tex);
 
 	// BUILDING THE GRID 
 
@@ -596,7 +599,7 @@ bool DEMO_APP::Run()
 	SV_WorldMatrix = IdentityMatrix();
 	SV_ViewMatrix = IdentityMatrix();
 
-	MY_MATRIX_4X4 Rotate = IdentityMatrix();
+//	MY_MATRIX_4X4 Rotate = IdentityMatrix();
 	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
 
 	// MMOVEMENT STUFF
@@ -660,34 +663,34 @@ bool DEMO_APP::Run()
 	float dx = 0.0f;
 	if (GetAsyncKeyState(VK_RBUTTON))
 	{
-		GetCursorPos(&cursor_position);
+		GetCursorPos(&cursor_current);
 
-		dx = cursor_previous.x - cursor_position.x;
-		dy = cursor_previous.y - cursor_position.y;
+		dx = cursor_previous.x - cursor_current.x;
+		dy = cursor_previous.y - cursor_current.y;
 
 		if (dx < 0.0f)
 		{
-			Rotate = ViewMatrix_RoateY(Rotate, DegToRad(-10.0f));
+			Rotate = ViewMatrix_RoateY(Rotate, DegToRad( dx ));
 
 		}
 		else if (dx > 0.0f)
 		{
-			Rotate = ViewMatrix_RoateY(Rotate, DegToRad(10.0f));
+			Rotate = ViewMatrix_RoateY(Rotate, DegToRad(dx ));
 
 
-		}
+		} else 
 
 		if (dy < 0.0f)
 		{
-			Rotate = ViewMatrix_RoateZ(Rotate, DegToRad(-10.0f));
+			Rotate = ViewMatrix_RoateX(Rotate, DegToRad(dy ));
 
 		}
-
+		else
 		if (dy > 0.0f)
 		{
-			Rotate = ViewMatrix_RoateZ(Rotate, DegToRad(10.0f));
+			Rotate = ViewMatrix_RoateX(Rotate, DegToRad( dy ));
 		}
-		cursor_previous = cursor_position;
+		cursor_previous = cursor_current;
 
 	}
 
@@ -886,6 +889,7 @@ bool DEMO_APP::ShutDown()
 	// TODO: PART 1 STEP 6
 
 	deviceContext->ClearState();
+	
 	SAFE_RELEASE(renderTargetView);
 	SAFE_RELEASE(chain);
 	SAFE_RELEASE(deviceContext);
@@ -894,11 +898,8 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(VS);
 	SAFE_RELEASE(device);
 	SAFE_RELEASE(BackBuffer);
-	//SAFE_RELEASE(VertBuffer);
 	SAFE_RELEASE(constantBuffer);
-//	SAFE_RELEASE(VertBufferStar);
 	SAFE_RELEASE(VSStar);
-//	SAFE_RELEASE(IndexBufferStar);
 	SAFE_RELEASE(VertBufferCube); // << unload this
 	SAFE_RELEASE(IndexBufferCube);  //<<<<  make this safe
 	SAFE_RELEASE(CubesTexture);
@@ -906,21 +907,28 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(constantBuffer_Camera);
 	SAFE_RELEASE(pDSV);
 	SAFE_RELEASE(pDepthStencil);
-	//SAFE_RELEASE(PS_Grid);
-//	SAFE_RELEASE(VS_Grid);
 	SAFE_RELEASE(VertBufferGrid);
 	SAFE_RELEASE(VSGrid_p);
-	//SAFE_RELEASE(blendState);
 	SAFE_RELEASE(rasterizerState);
 	SAFE_RELEASE(PS_Grid_pointer);
-//	SAFE_RELEASE(VSGrid);
-	//SAFE_RELEASE(shaderResourceView_desc);
-	//SAFE_RELEASE(depthStencilView);
-	
 	SAFE_RELEASE(Transparency);
 	SAFE_RELEASE(CCWcullMode);
 	SAFE_RELEASE(CWcullMode);
+	SAFE_RELEASE(constantBuffer_offset); 
+	SAFE_RELEASE(constantBuffer_Camera);
+	
 
+	SAFE_RELEASE(IndexBufferGrid);
+	SAFE_RELEASE(VS_Buffer);
+	SAFE_RELEASE(PS_Buffer);
+	SAFE_RELEASE(chainBuffer);
+	SAFE_RELEASE(CubesTexSamplerState);
+	SAFE_RELEASE(PS_Grid_pointer);
+	SAFE_RELEASE(Transparency);
+	SAFE_RELEASE(CWcullMode);
+
+
+	
 	UnregisterClass(L"DirectXApplication", application);
 
 	return true;
@@ -1046,12 +1054,6 @@ void DEMO_APP::ResizeWindow()
 
 		hr = device->CreateTexture2D(&descDepth, NULL, &pDepthStencil);
 
-	//	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
-	//	descDSV.Format = DXGI_FORMAT_D32_FLOAT;
-	//	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	//	descDSV.Texture2D.MipSlice = 0;
-	//	descDSV.Flags = 0;
-
 		hr = device->CreateDepthStencilView(pDepthStencil, // Depth stencil texture
 			0,									           // Depth stencil desc
 			&pDSV);									       // [out] Depth stencil view
@@ -1068,9 +1070,6 @@ void DEMO_APP::ResizeWindow()
 		deviceContext->RSSetViewports(1, &vp);
 
 		Aspect = vp.Height / vp.Width;
-	//	Aspect = vp.Width / vp.Height;
-
-
 	}
 
 }
