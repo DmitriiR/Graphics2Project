@@ -50,6 +50,10 @@ POINT cursor_previous;
 POINT cursor_current;
 IDXGISwapChain *chain = nullptr;
 
+
+XTime xTime;
+double deltatime = 0.0f;
+
 /////////// DIRECT INPUT
 IDirectInputDevice8* DIKeyboard;
 IDirectInputDevice8* DIMouse;
@@ -57,8 +61,9 @@ IDirectInputDevice8* DIMouse;
 DIMOUSESTATE mouseLastState;
 LPDIRECTINPUT8 DirectInput;
 
-float rotx = 0;
-float rotz = 0;
+float rot = 0.0f;
+float rotx = 0.0f;
+float rotz = 0.0f;
 float scaleX = 1.0f;
 float scaleY = 1.0f;
 
@@ -66,11 +71,15 @@ XMMATRIX Rotationx;
 XMMATRIX Rotationz;
 /////////// DERECT INPUT END
 
-////////////// CAMERA
+////////////// CAMERA //////////////////////
 XMVECTOR DefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 XMVECTOR DefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
 XMVECTOR camForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 XMVECTOR camRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+// new defines
+XMVECTOR camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+XMVECTOR camPosition = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+XMVECTOR camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);;
 
 XMMATRIX camRotationMatrix;
 XMMATRIX groundWorld;
@@ -80,7 +89,8 @@ float moveBackForward = 0.0f;
 
 float camYaw = 0.0f;
 float camPitch = 0.0f;
-///////////// CAMERA END
+///////////// CAMERA END //////////////////
+
 
 
 
@@ -135,17 +145,14 @@ class DEMO_APP
 	ID3D11Texture2D* pDepthStencil = NULL;
 
 	// All Shader Variables (Always Pre-fixed by “SV_”)
-	MY_MATRIX_4X4 SV_WorldMatrix;
-	MY_MATRIX_4X4 SV_ViewMatrix;
-	MY_MATRIX_4X4 SV_Perspective;
-
-
-	// old declaration
-	MY_MATRIX_4X4 Rotate = IdentityMatrix();
-	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
-	// new direct input 
-	XMMATRIX Roatation = XMMatrixIdentity();
-
+	XMMATRIX SV_WorldMatrix = XMMatrixIdentity();
+	XMMATRIX SV_ViewMatrix = XMMatrixIdentity();
+	XMMATRIX SV_Perspective = XMMatrixIdentity();  
+	XMMATRIX Rotation = XMMatrixIdentity();
+	XMMATRIX Rotationx = XMMatrixIdentity();
+	XMMATRIX Rotationz = XMMatrixIdentity();
+	XMMATRIX Translation = XMMatrixIdentity();
+	
 	ID3D11BlendState * blendState;
 	ID3D11BlendState* Transparency;
 	
@@ -159,7 +166,6 @@ class DEMO_APP
 //	ID3D11PixelShader* PS_Grid = nullptr;
 //	ID3D11VertexShader* VS_Grid = nullptr;
 
-	double deltatime = 0.0f;
 	float moveZ = -1.0f;
 	float moveX = 0.0f;
 	float moveY = 0.0f;
@@ -168,7 +174,6 @@ class DEMO_APP
 	float offset;
 	// BEGIN PART 3
 	// TODO: PART 3 STEP 1
-	XTime xTime;
 	// TODO: PART 3 STEP 2b
 
 	struct SEND_TO_VRAM
@@ -176,6 +181,16 @@ class DEMO_APP
 		float constantColor[4];
 		float constantOffset[2];
 		float padding[2];
+	};
+
+	struct WorldBuffer {
+		XMFLOAT4X4 worldMatrix;
+	};
+
+	struct Scene {
+		XMFLOAT4X4 viewMatrix;
+		XMFLOAT4X4 projMatrix;
+
 	};
 	// TODO: PART 3 STEP 4a
 	SEND_TO_VRAM toShader;
@@ -188,11 +203,12 @@ public:
 	bool Run();
 	bool ShutDown();
 	void ResizeWindow(); // prototype the resize 
-	void UpdateCamera(); // prototype the camera function
+	void UpdateCamera(double deltaTime); // prototype the camera function
 	bool InitializeDirectInput(HINSTANCE hInstance); // initialize the direct input
-	void DetectInput(double time);
+	void DetectInput(double deltaTime);
 	void MakeCube();
-	void MakeGrid();
+	void MakeGrid(float depth, float width);
+	//void Update();
 };
 
 
@@ -334,6 +350,7 @@ hr = device->CreateBuffer(&verteciesBufferDesc_cube, &vertexBufferData_cube, &Ve
 MakeCube();///////////////////////////////////////
 //////////////////////////////////////////////////
 
+
 // GRID Stuff /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 D3D11_INPUT_ELEMENT_DESC vLayout[] =
@@ -369,11 +386,16 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	// TODO: PART 3 STEP 4b
 	//toShader = { 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
+	// set the shaders
+	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
+	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders 
+
+
 	D3D11_BUFFER_DESC constBufferDesc_camera = { 0 };
 	constBufferDesc_camera.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc_camera.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	//constBufferDesc.ByteWidth = sizeof(SEND_TO_VRAM);
-	constBufferDesc_camera.ByteWidth = sizeof(MY_MATRIX_4X4) * 2;
+	constBufferDesc_camera.ByteWidth = sizeof(XMMATRIX) * 2;
 	constBufferDesc_camera.Usage = D3D11_USAGE_DYNAMIC;
 
 	device->CreateBuffer(&constBufferDesc_camera, nullptr, &constantBuffer_Camera);
@@ -457,7 +479,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	SAFE_RELEASE(tex);
 
 	///////// MAKE THE GRID ///////////////////////////////////////////////////////////// 
-	MakeGrid();
+	MakeGrid(1.0f,-1.0f);
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	device->CreatePixelShader(PS_Grid, sizeof(PS_Grid), nullptr, &PS_Grid_pointer);
@@ -530,28 +552,19 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 bool DEMO_APP::Run()
 {
 
-	xTime.Signal();
-	deltatime += xTime.Delta();
 
-	// TODO: PART 4 STEP 2	
 
-	// TODO: PART 4 STEP 3
-
-	// TODO: PART 4 STEP 5
-
-	// END PART 4
-
-	// TODO: PART 1 STEP 7a
 
 	// building the view matrix 
+//	SV_Perspective = Perspective_Projection_Matrix(90.0f, 100.0f, 0.1f, Aspect); // <<<<<< Projection 
+	//SV_WorldMatrix = XMMatrixIdentity();
+//	SV_ViewMatrix = XMMatrixIdentity();
 
+//	SV_Perspective = XMMatrixPerspectiveFovLH(45.0f, Aspect, 0.1f, 100.0f);
 
-	SV_Perspective = Perspective_Projection_Matrix(90.0f, 100.0f, 0.1f, Aspect); // <<<<<< Projection 
-	SV_WorldMatrix = IdentityMatrix();
-	SV_ViewMatrix = IdentityMatrix();
 
 //	MY_MATRIX_4X4 Rotate = IdentityMatrix();
-	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
+//	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
 
 	// MMOVEMENT STUFF
 	if (GetAsyncKeyState('S'))
@@ -605,9 +618,9 @@ bool DEMO_APP::Run()
 								device->CreateRasterizerState(&rasterizer_Description, &rasterizerState);
 							}
 
-	MY_MATRIX_4X4 TranslateMatrix_Save = Translate(TranslateMatrix, moveX, moveY, moveZ);
+//	MY_MATRIX_4X4 TranslateMatrix_Save = Translate(TranslateMatrix, moveX, moveY, moveZ);
 
-	TranslateMatrix = Translate(IdentityMatrix(), moveX, moveY, moveZ);
+//	TranslateMatrix = Translate(IdentityMatrix(), moveX, moveY, moveZ);
 
 
 //	float dy = 0.0f;
@@ -644,23 +657,6 @@ bool DEMO_APP::Run()
 //		cursor_previous = cursor_current;
 //
 //	}
-	DetectInput(deltatime);
-//
-//	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-//	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-//	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-//
-//	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-//	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-//	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-
-//	Roatation = XMMatrixRotationAxis(rotyaxis, rot);
-//	Rotationx = XMMatrixRotationAxis(rotxaxis, rotx);
-//	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
-//	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
-//
-//	//Set cube1's world space using the transformations
-//	cube1World = Translation * Rotation * Rotationx * Rotationz;
 
 
 
@@ -668,19 +664,29 @@ bool DEMO_APP::Run()
 
 
 
-	//Rotate = ViewMatrix_RoateX(Rotate, DegToRad(0.0f));            // rotate
-	TranslateMatrix = Translate(TranslateMatrix_Save, moveX, moveY, moveZ);
-	//	TranslateMatrix = Translate(TranslateMatrix, moveX, moveY, moveZ); // translation 
-	SV_ViewMatrix = Matrix_Matrix_Multiply(TranslateMatrix, Rotate);
-	SV_ViewMatrix = Inverse(SV_ViewMatrix);                          //   <<<<<<< VIEW
+	// old matrix
+
+
+
+//	Rotate = ViewMatrix_RoateX(Rotate, DegToRad(0.0f));            // rotate
+//	TranslateMatrix = Translate(TranslateMatrix, moveX, moveY, moveZ); // translation 
+//	Translation = XMMatrixTranslation(moveX, moveY, moveZ);
+	//	SV_ViewMatrix = Matrix_Matrix_Multiply(TranslateMatrix, Rotate);	
 	
-	
+//	XMMatrixIsIdentity(SV_ViewMatrix);
+//	SV_ViewMatrix = XMMatrixMultiply(Translation, Rotate);
+//	SV_ViewMatrix = XMMatrixMultiply(Translation, Rotation);
+//	SV_ViewMatrix = XMMatrixInverse()
+	//	SV_ViewMatrix = Inverse(SV_ViewMatrix);                          //   <<<<<<< VIEW
+//	XMVECTOR Determinant = XMMatrixDeterminant(SV_ViewMatrix);
+//	SV_ViewMatrix = XMMatrixInverse(NULL,SV_ViewMatrix);
 
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is thwre the Z bugger will go 
 
 
 	////////////////// BACKGROUND COLOR reset
 	float color_array[4] = { 0, 0, 0.3f, 0.4f };
+
 	deviceContext->ClearRenderTargetView(renderTargetView, color_array);
 
 	// Create the depth stencil view
@@ -696,8 +702,6 @@ bool DEMO_APP::Run()
 	deviceContext->OMSetBlendState(0, 0, 0xffffffff);
 	//Set the blend state for transparent objects
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
-	
- 
 
 	// Drawing Grid 
 	const UINT stride = sizeof(OBJ_VERT);
@@ -713,7 +717,7 @@ bool DEMO_APP::Run()
 
 	// TEXTURE
 
-	SV_WorldMatrix = IdentityMatrix();
+//	SV_WorldMatrix = IdentityMatrix();
 	float offset_for0;
 	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
@@ -736,9 +740,6 @@ bool DEMO_APP::Run()
 	deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
 	deviceContext->DrawIndexed(ARRAYSIZE(grid_indicies_new), 0, 0);
 
-
-
-	
 	float offset;
 	mapped_resource = { 0 };
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
@@ -773,64 +774,54 @@ bool DEMO_APP::Run()
 	deviceContext->Map(constantBuffer_offset, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource_offest);
 	memcpy(mapped_resource_offest.pData, &offset, sizeof(float));
 	deviceContext->Unmap(constantBuffer_offset, 0);
-	// TODO: PART 3 STEP 6
 	deviceContext->PSSetConstantBuffers(0, 1, &constantBuffer_offset); // the 0 is slot index 0, 1 is the num buffers 
 
 
 
-
 	//mapped_resource = { 0 };
-	MY_MATRIX_4X4 scene[2] = { SV_ViewMatrix, SV_Perspective };
+	XMMATRIX scene[2] = { SV_ViewMatrix, SV_Perspective };
 	deviceContext->Map(constantBuffer_Camera, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, scene, sizeof(scene));
 	deviceContext->Unmap(constantBuffer_Camera, 0);
-	// TODO: PART 3 STEP 6
 	deviceContext->VSSetConstantBuffers(1, 1, &constantBuffer_Camera); // 
 
 
-
-
 	// rotates the cupe matrix
-	SV_WorldMatrix = RotateOnY(SV_WorldMatrix, DegToRad(deltatime*20.0f));
+//	SV_WorldMatrix = RotateOnY(SV_WorldMatrix, DegToRad(deltatime*20.0f));
 	
 	offset_for0 = 0.0f;
-	 mapped_resource = { 0 };
+    mapped_resource = { 0 };
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, &SV_WorldMatrix, sizeof(SV_WorldMatrix));
 	deviceContext->Unmap(constantBuffer, 0);
 	// TODO: PART 3 STEP 6
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 
-
-
-
 	// Bind the depth stencil view
 	deviceContext->OMSetRenderTargets(1,          // One rendertarget view
 		&renderTargetView,						 // Render target view, created earlier
 		pDSV);									// Depth stencil view for the render target
 
-	// TODO: PART 2 STEP 9a
-	//VertBuffer
 
-	// // old code 
-	//const UINT stride = sizeof(SIMPLE_VERTEX);
 
-	// OLD LAB 7
-	//	deviceContext->IASetVertexBuffers(0, 1, &VertBuffer, &stride, &offest);
-	//	deviceContext->IASetVertexBuffers(0, 1, &VertBuffer_triangle, &stride, &offest); // new code !   <<<<<<<<<<<<<<<<<<<<<<<
+	// cube vertex buffer
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferCube, &stride, &offest);
 	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
-	// TODO: PART 2 STEP 9b
+	
+	//****************************************************************************
+	// Cube Shaders
 	deviceContext->VSSetShader(VSStar, nullptr, NULL);
 	deviceContext->PSSetShader(PS, nullptr, NULL);
-	// TODO: PART 2 STEP 9c
+	
+	//****************************************************************************
+	// input layout 
 	deviceContext->IASetInputLayout(pInputLayout);
-	// TODO: PART 2 STEP 9d
-	// TEXTURE
-	//deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
+	
+
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
 	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 
 	// Culling mode
 	//Counter clockwise, backside first then front.... culling mode
@@ -936,13 +927,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	while (msg.message != WM_QUIT && myApp.Run())
 	{
-		// this is where the messages being handled.
+		
+     // this is where the messages being handled.
 		// input handling
 		// move things
 		// update stuff here
 		// clear backbuffer 
 		// draw
 		// press buttons
+		
+		//theApp->Update(deltatime);
+		theApp->DetectInput(deltatime);
 		chain->Present(0, 0);
 
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -983,8 +978,6 @@ void DEMO_APP::ResizeWindow()
 {
 	if (chain)
 	{
-	
-
 		SAFE_RELEASE(pDepthStencil);
 		SAFE_RELEASE(pDSV);
 		SAFE_RELEASE(chainBuffer);
@@ -1064,81 +1057,152 @@ bool DEMO_APP::InitializeDirectInput(HINSTANCE hInstance)
 	hr = DIKeyboard->SetCooperativeLevel(window, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
 
 	hr = DIMouse->SetDataFormat(&c_dfDIMouse);
-	hr = DIMouse->SetCooperativeLevel(window, DISCL_EXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
-
+	// controls and sets the mouse pointer to locked 
+	// ---------------------------------------------
+	//hr = DIMouse->SetCooperativeLevel(window, DISCL_EXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
+	
+	// controls and sets the mouse pointer to lose 
+	// ---------------------------------------------
+	hr = DIMouse->SetCooperativeLevel(window, DISCL_EXCLUSIVE | DISCL_NOWINKEY );
+	//
+	ShowCursor(true);
 	return true;
 
 }
 
 void DEMO_APP::DetectInput(double time)
 {
+	// holds mouse info 
 	DIMOUSESTATE mouseCurrState;
-	//LONG lX;
+	// breakdown 
+	//LONG lX; 
 	//LONG lY;
 	//LONG lZ;
 	//BYTE rgbButtons[4];
 
-	BYTE keyboardState[256];
+	BYTE keyboardState[256] = {0};
 
 	DIKeyboard->Acquire();
 	DIMouse->Acquire();
+
 	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
 
 	DIKeyboard->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
 
-
 	if (keyboardState[DIK_ESCAPE] & 0x80)
 		PostMessage(window, WM_DESTROY, 0, 0);
 
-	if (keyboardState[DIK_LEFT] & 0x80)
+	float speed = 15.0f * time;
+
+	if (keyboardState[DIK_A] & 0x80)
 	{
-		rotz -= 1.0f * time;
+		moveLeftRight -= speed;
 	}
-	if (keyboardState[DIK_RIGHT] & 0x80)
+	if (keyboardState[DIK_D] & 0x80)
 	{
-		rotz += 1.0f * time;
+		moveLeftRight += speed;
 	}
-	if (keyboardState[DIK_UP] & 0x80)
+	if (keyboardState[DIK_W] & 0x80)
 	{
-		rotx += 1.0f * time;
+		moveBackForward += speed;
 	}
-	if (keyboardState[DIK_DOWN] & 0x80)
+	if (keyboardState[DIK_S] & 0x80)
 	{
-		rotx -= 1.0f * time;
+		moveBackForward -= speed;
 	}
-	if (mouseCurrState.lX != mouseLastState.lX)
+	if ((mouseCurrState.lX != mouseLastState.lX) || (mouseCurrState.lY != mouseLastState.lY))
 	{
-		scaleX -= (mouseCurrState.lX * 0.001f);
-	}
-	if (mouseCurrState.lY != mouseLastState.lY)
-	{
-		scaleY -= (mouseCurrState.lY * 0.001f);
+		camYaw += mouseLastState.lX * 0.001f;
+
+		camPitch += mouseCurrState.lY * 0.001f;
+
+		mouseLastState = mouseCurrState;
 	}
 
-	if (rotx > 6.28)
-		rotx -= 6.28;
-	else if (rotx < 0)
-		rotx = 6.28 + rotx;
-
-	if (rotz > 6.28)
-		rotz -= 6.28;
-	else if (rotz < 0)
-		rotz = 6.28 + rotz;
-
-	mouseLastState = mouseCurrState;
+	UpdateCamera(deltatime);
 
 	return;
 
-
 }
 
-void DEMO_APP::UpdateCamera()
+//void DEMO_APP::Update(double deltaTime)
+//{
+//
+//	//Keep the cubes rotating
+//	rot += 1.0f * deltaTime;
+//	if (rot > 6.28f)
+//		rot = 0.0f;
+//
+//	//Reset cube1World
+//	SV_WorldMatrix = XMMatrixIdentity();
+//
+//	//Define cube1's world space matrix
+//	///////////////**************new**************////////////////////
+//	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+//	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+//	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+//
+//	// rotate through the access 
+//	Rotation = XMMatrixRotationAxis(rotyaxis, rot);
+//	Rotationx = XMMatrixRotationAxis(rotxaxis, rotx);
+//	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
+//	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+//
+//	//Set cube1's world space using the transformations
+//	SV_WorldMatrix = Translation * Rotation * Rotationx * Rotationz;
+//	///////////////**************new**************////////////////////
+//
+//	//	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
+//
+////	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+////	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+////	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+////
+////	Rotation = XMMatrixRotationAxis(rotyaxis, rot);
+////	Rotationx = XMMatrixRotationAxis(rotxaxis, rotx);
+////	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
+////	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+////
+////	// get the vire matrix 
+////	SV_ViewMatrix = XMMatrixInverse(NULL, XMMatrixInverse(NULL, SV_WorldMatrix));
+////	// do input and manipulation
+////	DetectInput(deltatime);
+////
+////	//inverse it back
+////	SV_ViewMatrix = XMMatrixInverse(NULL, XMMatrixInverse(NULL, SV_WorldMatrix));
+////
+////
+////	SV_WorldMatrix = Translation * Rotation * Rotationx * Rotationz;
+////
+////	//	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
+////	//	camTarget = XMVector3Normalize(camTarget);
+//
+//}
+
+void DEMO_APP::UpdateCamera(double deltaTime)
 {
+	// not using the roll paramenter, so setting to 0
+	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
+	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
+	camTarget = XMVector3Normalize(camTarget);
 
-//	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
-//	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
-//	camTarget = XMVector3Normalize(camTarget);
+	// finding the new direction of the camera 
+	XMMATRIX temp_RotateOnY;
+	temp_RotateOnY = XMMatrixRotationY(camPitch);
 
+	camRight = XMVector3TransformCoord(DefaultRight, temp_RotateOnY);
+	camUp = XMVector3TransformCoord(camUp, temp_RotateOnY);
+	camForward = XMVector3TransformCoord(DefaultForward, temp_RotateOnY);
+
+	camPosition += moveLeftRight*camRight;
+	camPosition += moveBackForward*camForward;
+
+	moveLeftRight = 0.0f;
+	moveBackForward = 0.0f;
+
+	camTarget = camPosition + camTarget;
+
+	SV_ViewMatrix = XMMatrixLookAtLH(camPosition, camTarget, camUp);
 
 
 }
@@ -1160,17 +1224,13 @@ void DEMO_APP::MakeCube()
 
 	HRESULT hr = device->CreateBuffer(&indexBufferData_cube, &indexBufferDataSR_cube, &IndexBufferCube);
 
-	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
-	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders 
-
-	
 }
 
-void DEMO_APP::MakeGrid()
+void DEMO_APP::MakeGrid(float depth, float width)
 {
 	
-	float x = -1.0f;
-	float z = 1.0f;
+	float x = depth;
+	float z = width;
 
 	for (UINT i = 0; i < 21; i++)
 	{
@@ -1215,8 +1275,7 @@ void DEMO_APP::MakeGrid()
 	vertexBufferData_grid.SysMemSlicePitch = 0;
 
 	HRESULT hr = device->CreateBuffer(&verteciesBufferDesc_grid, &vertexBufferData_grid, &VertBufferGrid);
-
-
+	
 	D3D11_BUFFER_DESC indexBufferData_grid = { 0 };
 	indexBufferData_grid.Usage = D3D11_USAGE_IMMUTABLE;
 	indexBufferData_grid.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -1233,3 +1292,4 @@ void DEMO_APP::MakeGrid()
 	hr = device->CreateBuffer(&indexBufferData_grid, &indexBufferDataSR_grid, &IndexBufferGrid);
 
 }
+

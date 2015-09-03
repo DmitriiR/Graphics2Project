@@ -36,13 +36,3 @@ float4 main(P_IN input) : SV_TARGET
 
 	return color; // return a transition based on the detail alpha
 }
-
-//struct PS_IN
-//{
-//	float4 posH : SV_POSITION;
-//	float4 col : COLOR;
-//};
-//float4 main(PS_IN input) : SV_TARGET
-//{
-//	return input.col;
-//}

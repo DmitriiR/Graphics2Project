@@ -70,6 +70,7 @@
     <None Include="VS_Star.csh" />
     <None Include="VS_Grid.csh" />
     <None Include="PS_Grid.csh" />
+    <None Include="RuleSet.ruleset" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Assets\Textures\numbers_test.dds">
