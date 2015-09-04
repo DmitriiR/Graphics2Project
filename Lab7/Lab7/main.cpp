@@ -97,6 +97,19 @@ float camPitch = 0.0f;
 
 class DEMO_APP
 {
+
+	// personal defines
+
+	float moveZ = -1.0f;
+	float moveX = 0.0f;
+	float moveY = 0.0f;
+	float Aspect = 1.0f;
+	bool antializing = true;
+	float offset;
+	float movemet_speed = 0.001f;
+	bool first_person = false;
+
+
 	HINSTANCE						application;
 	WNDPROC							appWndProc;
 	HWND							window;
@@ -158,21 +171,6 @@ class DEMO_APP
 	ID3D11RasterizerState* CWcullMode;
 
 
-
-	// grid stuff
-//	ID3D11PixelShader* PS_Grid = nullptr;
-//	ID3D11VertexShader* VS_Grid = nullptr;
-
-	float moveZ = -1.0f;
-	float moveX = 0.0f;
-	float moveY = 0.0f;
-	float Aspect = 1.0f;
-	bool antializing = true;
-	float offset;
-	float movemet_speed = 0.001f;
-	// BEGIN PART 3
-	// TODO: PART 3 STEP 1
-	// TODO: PART 3 STEP 2b
 
 	struct SEND_TO_VRAM
 	{
@@ -739,32 +737,8 @@ bool DEMO_APP::Run()
 	float offset;
 	offset = 0.0f;
 	
-//	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
-//	memcpy(mapped_resource.pData, &SV_WorldMatrix, sizeof(SV_WorldMatrix));
-//	deviceContext->Unmap(constantBuffer, 0);
-//	// TODO: PART 3 STEP 6
-//	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 	
 	
-
-// boundary breach 
-	if (deltatime > 2 )
-	{
-		offset = 0.25f;
-	} 
-	if (deltatime > 4)
-	{
-		offset = 0.5f;
-	}
-	if (deltatime > 6)
-	{
-		offset = 0.75f;
-	}
-	if (deltatime > 8)
-	{
-		deltatime = 0.0f;
-	}
-
 
 	D3D11_MAPPED_SUBRESOURCE mapped_resource_offest = { 0 };
 	deviceContext->Map(constantBuffer_offset, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource_offest);
@@ -1046,13 +1020,30 @@ void DEMO_APP::DetectInput(double time)
 	{
 		moveBackForward -= movemet_speed;
 	}
-	if ((mouseCurrState.lX != mouseLastState.lX) || (mouseCurrState.lY != mouseLastState.lY))
+	if (keyboardState[DIK_1] & 0x80)
 	{
-		camYaw -= mouseLastState.lX * 0.001f;
+		first_person = !first_person;
+	}
+// switching between first and freelook camera
+	if (first_person)
+	{
 
-		camPitch -= mouseCurrState.lY * 0.001f;
+		if ( ((mouseCurrState.lX != mouseLastState.lX) || (mouseCurrState.lY != mouseLastState.lY)))
+		{
+			camYaw += mouseLastState.lX * 0.001f;
+			camPitch += mouseCurrState.lY * 0.001f;
+			mouseLastState = mouseCurrState;
+		}
+	}
+	else
+	{
+		if (((mouseCurrState.lX != mouseLastState.lX) || (mouseCurrState.lY != mouseLastState.lY)) && GetAsyncKeyState(VK_RBUTTON))
+		{
+			camYaw += mouseLastState.lX * 0.001f;
+			camPitch += mouseCurrState.lY * 0.001f;
+			mouseLastState = mouseCurrState;
+		}
 
-		mouseLastState = mouseCurrState;
 	}
 
 	UpdateCamera(deltatime);
@@ -1205,13 +1196,13 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 
 void DEMO_APP::MakeCube()
 {
-	D3D11_BUFFER_DESC indexBufferData_cube = { 0 };
-	indexBufferData_cube.Usage = D3D11_USAGE_IMMUTABLE;
-	indexBufferData_cube.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferData_cube.ByteWidth = sizeof(Cube_indicies);
-	indexBufferData_cube.MiscFlags = 0;
-	indexBufferData_cube.CPUAccessFlags = 0;
-	indexBufferData_cube.StructureByteStride = 0;
+	D3D11_BUFFER_DESC indexBufferData_cube		= { 0 };
+	indexBufferData_cube.Usage					= D3D11_USAGE_IMMUTABLE;
+	indexBufferData_cube.BindFlags				= D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_cube.ByteWidth				= sizeof(Cube_indicies);
+	indexBufferData_cube.MiscFlags				= 0;
+	indexBufferData_cube.CPUAccessFlags			= 0;
+	indexBufferData_cube.StructureByteStride	= 0;
 
 	D3D11_SUBRESOURCE_DATA indexBufferDataSR_cube = { 0 };
 	indexBufferDataSR_cube.pSysMem = Cube_indicies;
@@ -1250,21 +1241,18 @@ void DEMO_APP::MakeGround()
 	// TODO: PART 2 STEP 9c
 	deviceContext->IASetInputLayout(pInputLayout);
 
+	D3D11_BUFFER_DESC indexBufferData_ground	= { 0 };
+	indexBufferData_ground.Usage				= D3D11_USAGE_IMMUTABLE;
+	indexBufferData_ground.BindFlags			= D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_ground.ByteWidth			= sizeof(Ground_indicies);
+	indexBufferData_ground.MiscFlags			= 0;
+	indexBufferData_ground.CPUAccessFlags		= 0;
+	indexBufferData_ground.StructureByteStride	= 0;
 
-
-
-	D3D11_BUFFER_DESC indexBufferData_ground = { 0 };
-	indexBufferData_ground.Usage = D3D11_USAGE_IMMUTABLE;
-	indexBufferData_ground.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferData_ground.ByteWidth = sizeof(Ground_indicies);
-	indexBufferData_ground.MiscFlags = 0;
-	indexBufferData_ground.CPUAccessFlags = 0;
-	indexBufferData_ground.StructureByteStride = 0;
-
-	D3D11_SUBRESOURCE_DATA indexBufferDataSR_ground = { 0 };
-	indexBufferDataSR_ground.pSysMem = Ground_indicies;
-	indexBufferDataSR_ground.SysMemPitch = 0;
-	indexBufferDataSR_ground.SysMemSlicePitch = 0;
+	D3D11_SUBRESOURCE_DATA indexBufferDataSR_ground		= { 0 };
+	indexBufferDataSR_ground.pSysMem					= Ground_indicies;
+	indexBufferDataSR_ground.SysMemPitch				= 0;
+	indexBufferDataSR_ground.SysMemSlicePitch			= 0;
 
 	HRESULT hr = device->CreateBuffer(&indexBufferData_ground, &indexBufferDataSR_ground, &IndexBufferGround);
 
@@ -1338,6 +1326,13 @@ void DEMO_APP::MakeGrid(float depth, float width)
 	indexBufferDataSR_grid.pSysMem = grid_indicies_new;
 	indexBufferDataSR_grid.SysMemPitch = 0;
 	indexBufferDataSR_grid.SysMemSlicePitch = 0;
+
+	D3D11_MAPPED_SUBRESOURCE mapped_resource_offest = { 0 };
+	deviceContext->Map(constantBuffer_offset, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource_offest);
+	memcpy(mapped_resource_offest.pData, &offset, sizeof(float));
+	deviceContext->Unmap(constantBuffer_offset, 0);
+	deviceContext->PSSetConstantBuffers(0, 1, &constantBuffer_offset); // the 0 is slot index 0, 1 is the num buffers 
+
 
 	hr = device->CreateBuffer(&indexBufferData_grid, &indexBufferDataSR_grid, &IndexBufferGrid);
 
