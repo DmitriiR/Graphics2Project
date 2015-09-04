@@ -1377,7 +1377,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(VSStar);
 	SAFE_RELEASE(VertBufferCube); // << unload this
 	SAFE_RELEASE(IndexBufferCube);  //<<<<  make this safe
-	SAFE_RELEASE(IndexBufferGround);
+//	SAFE_RELEASE(IndexBufferGround);
 	SAFE_RELEASE(CubesTexture);
 	SAFE_RELEASE(CubesTexSamplerState);
 	SAFE_RELEASE(constantBuffer_Camera);
