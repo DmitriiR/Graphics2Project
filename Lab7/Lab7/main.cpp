@@ -29,6 +29,7 @@
 #include "DDSTextureLoader.h"
 #include <dinput.h>
 
+
 using namespace std;
 using namespace DirectX;
 
@@ -116,7 +117,7 @@ class DEMO_APP
 	HWND							window;
 	// TODO: PART 1 STEP 2
 
-	DXGI_SWAP_CHAIN_DESC  * desk = nullptr;
+//	DXGI_SWAP_CHAIN_DESC  * desk = nullptr;
 	ID3D11Texture2D       * BackBuffer = nullptr;
 	ID3D11Device		  * device = nullptr;
 	ID3D11DeviceContext   * deviceContext = nullptr;
@@ -128,30 +129,31 @@ class DEMO_APP
 	//ID3D11Buffer * VertBuffer;
 	//ID3D11Buffer * VertBuffer_triangle;
 	//ID3D11Buffer * VertBufferStar;
-	ID3D11Buffer * VertBufferCube; // << unload this
-	ID3D11Buffer * VertBufferGrid;
+	ID3D11Buffer * VertBufferCube = nullptr; // << unload this
+//	ID3D11Buffer * VertBufferGrid = nullptr;
 	ID3D11Buffer * VertBufferGround = 0;
 	//ID3D11Buffer * IndexBufferStar;
-	ID3D11Buffer * IndexBufferCube;
+	ID3D11Buffer * IndexBufferCube = nullptr;
 	ID3D11Buffer * IndexBufferGround = 0;;
-	ID3D11Buffer * IndexBufferGrid;
+//	ID3D11Buffer * IndexBufferGrid = nullptr;
 	ID3D11Buffer * VS_Buffer = nullptr;
 	ID3D11Buffer * PS_Buffer = nullptr;
-	ID3D11Buffer * constantBuffer;
-	ID3D11Buffer * constantBuffer_offset; //<< clear later
-	ID3D11Buffer * constantBuffer_Camera;
+	ID3D11Buffer * constantBuffer = nullptr;
+	ID3D11Buffer * constantBuffer_offset = nullptr; //<< clear later
+	ID3D11Buffer * constantBuffer_Camera = nullptr;
 
 	ID3D11Resource				* chainBuffer = nullptr;
 	ID3D11ShaderResourceView	* CubesTexture = nullptr;
 	ID3D11SamplerState			* CubesTexSamplerState = nullptr;
 
 	ID3D11PixelShader* PS = nullptr;
-	ID3D11PixelShader* PS_Grid_pointer = nullptr;
+	//ID3D11PixelShader* PS_Grid_pointer = nullptr;
 	ID3D11VertexShader* VS = nullptr;
 	ID3D11VertexShader* VSStar = nullptr;
-	ID3D11VertexShader* VSGrid_p = nullptr;
+	//ID3D11VertexShader* VSGrid_p = nullptr;
 
-	ID3D11DepthStencilView* pDSV;
+	ID3D11DepthStencilView* pDSV = nullptr;
+	ID3D11Buffer* cbPerFrameBuffer = nullptr;
 
 	ID3D11Texture2D* pDepthStencil = NULL;
 
@@ -166,11 +168,32 @@ class DEMO_APP
 	
 	ID3D11BlendState * blendState;
 	ID3D11BlendState* Transparency;
-	
+
 	ID3D11RasterizerState* rasterizerState;
 	ID3D11RasterizerState* CCWcullMode;
 	ID3D11RasterizerState* CWcullMode;
 
+	struct Light
+	{
+		Light()
+		{
+			ZeroMemory(this, sizeof(Light));
+		}
+
+		XMFLOAT3	dir;
+		float		pad;
+		XMFLOAT4	ambient;
+		XMFLOAT4	diffuse;
+	};
+
+	Light light;
+
+	struct cbPerFrame
+	{
+		Light light;
+	};
+
+	cbPerFrame constbuffPerFrame;
 
 
 	struct SEND_TO_VRAM
@@ -317,12 +340,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewPort.MinDepth = 0;
 	viewPort.MaxDepth = 1;
 
-	// TODO: PART 2 STEP 3a
-	
-
-	/////////////////////////////////////////////////////////////// end lab 7
-
-
 
 // MAKES CUVBE buffers
 D3D11_BUFFER_DESC verteciesBufferDesc_cube;
@@ -345,12 +362,14 @@ vertexBufferData_cube.SysMemSlicePitch = 0;
 hr = device->CreateBuffer(&verteciesBufferDesc_cube, &vertexBufferData_cube, &VertBufferCube);
 
 
-//////////////////////////////////////////////////
+///////////MAKE THE CUBE /////////////////////////
 MakeCube();///////////////////////////////////////
 //////////////////////////////////////////////////
 
+///////// MAKE THE GROUND ////////////////////////
+MakeGround();/////////////////////////////////////
+//////////////////////////////////////////////////
 
-// GRID Stuff /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 D3D11_INPUT_ELEMENT_DESC vLayout[] =
 {
@@ -359,19 +378,15 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	{ "NRM", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 };
 
-
-// TODO: PART 3 STEP 3
 	D3D11_BUFFER_DESC constBufferDesc = { 0 };
 	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	//constBufferDesc.ByteWidth = sizeof(SEND_TO_VRAM);
 	constBufferDesc.ByteWidth = sizeof(SV_WorldMatrix);
 	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 
 	D3D11_SUBRESOURCE_DATA constBuffer_resource = { 0 };
 	device->CreateBuffer(&constBufferDesc, nullptr, &constantBuffer);
 
-	// 
 	D3D11_BUFFER_DESC constBufferDesc_offset = { 0 };
 	constBufferDesc_offset.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc_offset.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -380,17 +395,6 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 	D3D11_SUBRESOURCE_DATA constBuffer_resource_offset = { 0 };
 	device->CreateBuffer(&constBufferDesc_offset, nullptr, &constantBuffer_offset);
-
-
-	// TODO: PART 3 STEP 4b
-	//toShader = { 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-
-	// set the shaders
-	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
-	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders 
-
-
-	
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
 	descDSV.Format = DXGI_FORMAT_D32_FLOAT;
@@ -421,9 +425,6 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 		&pDSV);											// [out] Depth stencil view
 
 	// TEXTURE DESCRIPTION 
-	
-
-
 
 	D3D11_SAMPLER_DESC samplerDesc;
 	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
@@ -436,60 +437,62 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 	// cube texturing
 
-	ID3D11Texture2D * tex;
-	D3D11_TEXTURE2D_DESC tdesc;
-	D3D11_SUBRESOURCE_DATA tbsd[numbers_test_numlevels];
-	ZeroMemory(tbsd, sizeof(tbsd));
-	for (unsigned int i = 0; i < numbers_test_numlevels; i++)
-	{
-		tbsd[i].pSysMem = &numbers_test_pixels[numbers_test_leveloffsets[i]] ;
-		tbsd[i].SysMemPitch = sizeof(UINT) * (numbers_test_width >> i);
-	}
+//	ID3D11Texture2D * tex;
+//	D3D11_TEXTURE2D_DESC tdesc;
+//	D3D11_SUBRESOURCE_DATA tbsd[numbers_test_numlevels];
+//	ZeroMemory(tbsd, sizeof(tbsd));
+//	for (unsigned int i = 0; i < numbers_test_numlevels; i++)
+//	{
+//		tbsd[i].pSysMem = &numbers_test_pixels[numbers_test_leveloffsets[i]] ;
+//		tbsd[i].SysMemPitch = sizeof(UINT) * (numbers_test_width >> i);
+//	}
+//
+//
+//	tdesc.Width = numbers_test_width ;
+//	tdesc.Height = numbers_test_height;
+//	tdesc.MipLevels = numbers_test_numlevels;
+//	tdesc.ArraySize = 1;
+//
+//	tdesc.SampleDesc.Count = 1;
+//	tdesc.SampleDesc.Quality = 0;
+//	tdesc.Usage = D3D11_USAGE_DEFAULT;
+//	tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+//	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+//
+//	tdesc.CPUAccessFlags = 0;
+//	tdesc.MiscFlags = 0;
+//
+//	device->CreateTexture2D(&tdesc, tbsd, &tex);
+//	hr = device->CreateSamplerState(&samplerDesc, &CubesTexSamplerState);
+//	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceView_desc;
+//	shaderResourceView_desc.Format = tdesc.Format;
+//	shaderResourceView_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+//	shaderResourceView_desc.Texture2D.MostDetailedMip = 0;
+//	shaderResourceView_desc.Texture2D.MipLevels = numbers_test_numlevels;
+//	
+//	////// get TEXTURE from file 
+//	SAFE_RELEASE(tex);// !!!
+	hr = CreateDDSTextureFromFile(device, L"fieldDDs.dds", NULL, &CubesTexture);
 
-
-	tdesc.Width = numbers_test_width ;
-	tdesc.Height = numbers_test_height;
-	tdesc.MipLevels = numbers_test_numlevels;
-	tdesc.ArraySize = 1;
-
-	tdesc.SampleDesc.Count = 1;
-	tdesc.SampleDesc.Quality = 0;
-	tdesc.Usage = D3D11_USAGE_DEFAULT;
-	tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-	tdesc.CPUAccessFlags = 0;
-	tdesc.MiscFlags = 0;
-
-	device->CreateTexture2D(&tdesc, tbsd, &tex);
-	hr = device->CreateSamplerState(&samplerDesc, &CubesTexSamplerState);
-	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceView_desc;
-	shaderResourceView_desc.Format = tdesc.Format;
-	shaderResourceView_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	shaderResourceView_desc.Texture2D.MostDetailedMip = 0;
-	shaderResourceView_desc.Texture2D.MipLevels = numbers_test_numlevels;
-	device->CreateShaderResourceView(tex, NULL, &CubesTexture);
 	
-	SAFE_RELEASE(tex);
 
-	///////// MAKE THE GRID ///////////////////////////////////////////////////////////// 
-//	MakeGrid(10.0f,-10.0f);
-	/////////////////////////////////////////////////////////////////////////////////////
+	// set the shaders
+	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
+	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders
 
-	///////// MAKE THE GROUND /////////////////////////////////////////////////////////////
-	MakeGround();
-	/////////////////////////////////////////////////////////////////////////////////////
+	device->CreateInputLayout(vLayout, 3, VS_Star, sizeof(VS_Star), &pInputLayout);
 
-	device->CreatePixelShader(PS_Grid, sizeof(PS_Grid), nullptr, &PS_Grid_pointer);
-	device->CreateVertexShader(VS_Grid, sizeof(VS_Grid), nullptr, &VSGrid_p);
-	device->CreateInputLayout(vLayout, 3, VS_Grid, sizeof(VS_Grid), &pInputLayout);
+
+
+
+
+
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// ANTIALISING 
-
 	D3D11_RASTERIZER_DESC rasterizer_Description;
 	ZeroMemory(&rasterizer_Description, sizeof(rasterizer_Description));
-	rasterizer_Description.AntialiasedLineEnable = antializing;
+	rasterizer_Description.AntialiasedLineEnable = true;
 	rasterizer_Description.FillMode = D3D11_FILL_SOLID;
 	rasterizer_Description.CullMode = D3D11_CULL_NONE;
 
@@ -505,7 +508,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
 
-	rtbd.BlendEnable			= false;
+	rtbd.BlendEnable			= true;
 	rtbd.SrcBlend				= D3D11_BLEND_SRC_COLOR;
 	rtbd.DestBlend				= D3D11_BLEND_BLEND_FACTOR;
 	rtbd.BlendOp				= D3D11_BLEND_OP_ADD;
@@ -536,8 +539,26 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 	//*******************************************************
 	// Member function for window resize 
-
 	ResizeWindow();
+
+
+	// LIGHT //////////////////////////////////////////////   setup 
+	D3D11_BUFFER_DESC cbbd;
+	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+
+	cbbd.Usage = D3D11_USAGE_DEFAULT;
+	cbbd.ByteWidth = sizeof(cbPerFrame);
+	cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbbd.CPUAccessFlags = 0;
+	cbbd.MiscFlags = 0;
+
+	hr = device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+
+
+	// Setting Up the light 
+	light.dir		= XMFLOAT3(0.25f,	0.5f, -1.0f);
+	light.ambient	= XMFLOAT4(0.2f,	0.2f, 0.2f, 1.0f);
+	light.diffuse	= XMFLOAT4(1.0f,	1.0f, 1.0f, 1.0f);
 
 
 
@@ -550,128 +571,6 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 bool DEMO_APP::Run()
 {
 
-	// building the view matrix 
-//	SV_Perspective = Perspective_Projection_Matrix(90.0f, 100.0f, 0.1f, Aspect); // <<<<<< Projection 
-	//SV_WorldMatrix = XMMatrixIdentity();
-//	SV_ViewMatrix = XMMatrixIdentity();
-
-//	SV_Perspective = XMMatrixPerspectiveFovLH(45.0f, Aspect, 0.1f, 100.0f);
-
-
-//	MY_MATRIX_4X4 Rotate = IdentityMatrix();
-//	MY_MATRIX_4X4 TranslateMatrix = IdentityMatrix();
-
-
-	// OLD MOVENT CODE ////////////////////////////////////////////////
-
-	// MMOVEMENT STUFF
-//	if (GetAsyncKeyState('S'))
-//	{
-//		moveZ -= MOVE_SPEED;
-//
-//	}
-//	else
-//		if (GetAsyncKeyState('W'))
-//		{
-//			moveZ += MOVE_SPEED;
-//
-//			if (moveZ >= -1.00f)
-//			{
-//				moveZ = -1.0f;
-//			}
-//		}
-//		else
-//			if (GetAsyncKeyState('A'))
-//			{
-//				moveX -= MOVE_SPEED;
-//			}
-//			else
-//				if (GetAsyncKeyState('D'))
-//				{
-//					moveX += MOVE_SPEED;
-//				}
-//				else
-//					if (GetAsyncKeyState('R'))
-//					{
-//						moveY += MOVE_SPEED;
-//					}
-//					else
-//						if (GetAsyncKeyState('F'))
-//						{
-//							moveY -= MOVE_SPEED;
-//						}
-//						else
-//							if (moveZ > 1.0f)
-//							{
-//								moveX = -1.0f;
-//							}
-//							else if (GetAsyncKeyState('4'))
-//							{
-//								antializing = !antializing;
-//								D3D11_RASTERIZER_DESC rasterizer_Description;
-//								ZeroMemory(&rasterizer_Description, sizeof(rasterizer_Description));
-//								rasterizer_Description.AntialiasedLineEnable = antializing;
-//								rasterizer_Description.FillMode = D3D11_FILL_SOLID;
-//								rasterizer_Description.CullMode = D3D11_CULL_NONE;
-//								device->CreateRasterizerState(&rasterizer_Description, &rasterizerState);
-//							}
-//
-//	MY_MATRIX_4X4 TranslateMatrix_Save = Translate(TranslateMatrix, moveX, moveY, moveZ);
-
-//	TranslateMatrix = Translate(IdentityMatrix(), moveX, moveY, moveZ);
-
-
-//	float dy = 0.0f;
-//	float dx = 0.0f;
-//	if (GetAsyncKeyState(VK_RBUTTON))
-//	{
-//		GetCursorPos(&cursor_current);
-//
-//		dx = cursor_previous.x - cursor_current.x;
-//		dy = cursor_previous.y - cursor_current.y;
-//
-//		if (dx < 0.0f)
-//		{
-//			Rotate = ViewMatrix_RoateY(Rotate, DegToRad( dx ));
-//
-//		}
-//		else if (dx > 0.0f)
-//		{
-//			Rotate = ViewMatrix_RoateY(Rotate, DegToRad(dx ));
-//
-//
-//		} else 
-//
-//		if (dy < 0.0f)
-//		{
-//			Rotate = ViewMatrix_RoateX(Rotate, DegToRad(dy ));
-//
-//		}
-//		else
-//		if (dy > 0.0f)
-//		{
-//			Rotate = ViewMatrix_RoateX(Rotate, DegToRad( dy ));
-//		}
-//		cursor_previous = cursor_current;
-//
-//	}
-
-	// old matrix
-
-
-
-//	Rotate = ViewMatrix_RoateX(Rotate, DegToRad(0.0f));            // rotate
-//	TranslateMatrix = Translate(TranslateMatrix, moveX, moveY, moveZ); // translation 
-//	Translation = XMMatrixTranslation(moveX, moveY, moveZ);
-	//	SV_ViewMatrix = Matrix_Matrix_Multiply(TranslateMatrix, Rotate);	
-	
-//	XMMatrixIsIdentity(SV_ViewMatrix);
-//	SV_ViewMatrix = XMMatrixMultiply(Translation, Rotate);
-//	SV_ViewMatrix = XMMatrixMultiply(Translation, Rotation);
-//	SV_ViewMatrix = XMMatrixInverse()
-	//	SV_ViewMatrix = Inverse(SV_ViewMatrix);                          //   <<<<<<< VIEW
-//	XMVECTOR Determinant = XMMatrixDeterminant(SV_ViewMatrix);
-//	SV_ViewMatrix = XMMatrixInverse(NULL,SV_ViewMatrix);
 
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is thwre the Z bugger will go 
 
@@ -694,99 +593,54 @@ bool DEMO_APP::Run()
 	//Set the blend state for transparent objects
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
 
-	// Drawing Grid 
+	
+
+	// LIGHT ////////////////////////////////////////////////////////////////////////////
+	constbuffPerFrame.light = light;
+	deviceContext->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &constbuffPerFrame, 0, 0);
+	deviceContext->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);
+	////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
 	const UINT stride = sizeof(OBJ_VERT);
 	UINT offest = 0;
-
-	// GRID 
-
-//	deviceContext->IASetVertexBuffers(0, 1, &VertBufferGrid, &stride, &offest);
-//	deviceContext->IASetIndexBuffer(IndexBufferGrid, DXGI_FORMAT_R32_UINT, offest);
-//	// TODO: PART 2 STEP 9b
-//	deviceContext->VSSetShader(VSGrid_p, nullptr, NULL);
-//	deviceContext->PSSetShader(PS, nullptr, NULL);
-
-
-	// TODO: PART 2 STEP 9d
-
-	// TEXTURE
-
-//	SV_WorldMatrix = IdentityMatrix();
-
-	// TODO: PART 3 STEP 6
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
-
-	//deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-
-	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
-	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-
-
-	deviceContext->PSSetShader(PS_Grid_pointer, nullptr, NULL);
-	deviceContext->RSSetState(rasterizerState);
-
-	// old code
-	//	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP); // for triangles
-//	deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-//	deviceContext->DrawIndexed(ARRAYSIZE(grid_indicies_new), 0, 0);
-
-
-
-	//memory leak check !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
-	
 	
 	UINT offset;
 	offset = 0;
 	
-	
-	
-	
-	// rotates the cupe matrix
-//	SV_WorldMatrix = RotateOnY(SV_WorldMatrix, DegToRad(deltatime*20.0f));
-	
+	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-
-    /////////// GROUND DRAW
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
+	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
+	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	deviceContext->RSSetState(rasterizerState);
+	
+	
+	/////////// DRAW GROUND//////////////////////
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetIndexBuffer(IndexBufferGround, DXGI_FORMAT_R32_UINT, offset);
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferGround, &stride, &offest);
-
-	deviceContext->VSSetShader(VSGrid_p, nullptr, NULL);
-	deviceContext->PSSetShader(PS, nullptr, NULL);
-	deviceContext->DrawIndexed(6, 0, 0);
-
-
-	// cube vertex buffer
-	deviceContext->IASetVertexBuffers(0, 1, &VertBufferCube, &stride, &offest);
-	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
-
-	
-	//****************************************************************************
-	// Cube Shaders
 	deviceContext->VSSetShader(VSStar, nullptr, NULL);
 	deviceContext->PSSetShader(PS, nullptr, NULL);
+
+	deviceContext->DrawIndexed(6, 0, 0);
 	
-	//****************************************************************************
-	// input layout 
+
+	/////////// DRAW CUBE/////////////////////////
 	deviceContext->IASetInputLayout(pInputLayout);
-
-	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
-	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-
-	// Culling mode
-	//Counter clockwise, backside first then front.... culling mode
-	//**************************************************************************
-	// DRAW Cube clockwise 
+	deviceContext->IASetVertexBuffers(0, 1, &VertBufferCube, &stride, &offest);
+	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
+	deviceContext->VSSetShader(VSStar, nullptr, NULL);
+	deviceContext->PSSetShader(PS, nullptr, NULL);
+	//culling 
 	deviceContext->RSSetState(CCWcullMode); // counter clockwise 
 	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);
 
 	deviceContext->RSSetState(CWcullMode);  // clockwise 
 	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);
-	
-	
+	//****************************************************************************
 	
 	return true;
 }
@@ -935,8 +789,9 @@ void DEMO_APP::ResizeWindow()
 		deviceContext->RSSetViewports(1, &vp);
 
 		Aspect = vp.Height / vp.Width;
+		
 	}
-
+	
 }
 
 bool DEMO_APP::InitializeDirectInput(HINSTANCE hInstance)
@@ -977,6 +832,7 @@ void DEMO_APP::DetectInput(double time)
 {
 	// holds mouse info 
 	DIMOUSESTATE mouseCurrState;
+
 	// breakdown 
 	//LONG lX; 
 	//LONG lY;
@@ -1210,21 +1066,56 @@ void DEMO_APP::MakeCube()
 
 void DEMO_APP::MakeGround(float scale)
 {
-	//Create the vertex buffer
-	OBJ_VERT Ground_data[4] =
-	{		//X       Y     Z       u      v     w          N            
-		{ { -1.0f, 0.0f , 1.0f },{ 0.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } }, //0
-		{ {  1.0f, 0.0f,  1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } },//1
-		{ { -1.0f, 0.0f, -1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } },//2
-	    { {  1.0f, 0.0f, -1.0f },{ 1.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } } //3
-	};
+	OBJ_VERT Ground_data[4] = { 0 };
+	// Generating grid 
+	float x_pos = -1.0f;
+	float z_pos =  1.0f;
 
+	float u = 0.0f;
+	float v = 0.0f;
 	for (UINT i = 0; i < 4; i++)
 	{
-		XMVECTOR temp = { Ground_data[i].pos[0], Ground_data[i].pos[1], Ground_data[i].pos[2], 0 };
-		temp = XMVector4Transform(temp, XMMatrixScaling(scale,0, scale));
-		memcpy(&Ground_data[i].pos[0], &temp, sizeof(Ground_data[i]));
+		Ground_data[i] = { { x_pos, 0.0f , z_pos },{ u, v, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+		x_pos = - x_pos;
+		
+		if (i % 2)
+		{
+	    	z_pos = - z_pos;
+		}
+
+		u = u + 1;
+		if (u >= 2)
+		{
+			u = 0.0f;
+		}
+		if (i==2)
+		{
+		Ground_data[2].uvw[1] = 1.0f;
+
+		} if (i==3)
+		{
+	    Ground_data[3].uvw[1] = 1.0f;
+
+		}
 	}
+	//Ground_data
+	//Create the vertex buffer
+//	Ground_data[4] =
+//	{		//X       Y     Z       u      v     w          N            
+		
+
+//	Ground_data[0] = { { -1.0f, 0.0f , 1.0f },{ 0.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };//0
+//	Ground_data[1] = { {  1.0f, 0.0f,  1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };//1
+//	Ground_data[2] = { { -1.0f, 0.0f, -1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };//2
+//	Ground_data[3] = { {  1.0f, 0.0f, -1.0f },{ 1.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } }; //3
+//	};
+
+	//for (UINT i = 0; i < 4; i++)
+	//{
+	//	XMVECTOR temp = { Ground_data[i].pos[0], Ground_data[i].pos[1], Ground_data[i].pos[2], 0 };
+	//	temp = XMVector4Transform(temp, XMMatrixScaling(scale,0, scale));
+	//	memcpy(&Ground_data[i].pos[0], &temp, sizeof(Ground_data[i]));
+	//}
 
 
 	unsigned int Ground_indicies[6] =
@@ -1341,8 +1232,8 @@ void DEMO_APP::MakeGrid(float depth, float width)
 	deviceContext->Unmap(constantBuffer_offset, 0);
 	deviceContext->PSSetConstantBuffers(0, 1, &constantBuffer_offset); // the 0 is slot index 0, 1 is the num buffers 
 
-	HRESULT hr =	device->CreateBuffer(&verteciesBufferDesc_grid, &vertexBufferData_grid, &VertBufferGrid);
-	hr =			device->CreateBuffer(&indexBufferData_grid, &indexBufferDataSR_grid, &IndexBufferGrid);
+//	HRESULT hr =	device->CreateBuffer(&verteciesBufferDesc_grid, &vertexBufferData_grid, &VertBufferGrid);
+//	hr =			device->CreateBuffer(&indexBufferData_grid, &indexBufferDataSR_grid, &IndexBufferGrid);
 
 }
 
@@ -1387,10 +1278,11 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(constantBuffer_Camera);
 	SAFE_RELEASE(pDSV);
 	SAFE_RELEASE(pDepthStencil);
+//	SAFE_RELEASE(blendState);
 //	SAFE_RELEASE(VertBufferGrid);
-	SAFE_RELEASE(VSGrid_p);
+//	SAFE_RELEASE(VSGrid_p);
 	SAFE_RELEASE(rasterizerState);
-	SAFE_RELEASE(PS_Grid_pointer);
+//	SAFE_RELEASE(PS_Grid_pointer);
 	SAFE_RELEASE(Transparency);
 	SAFE_RELEASE(CCWcullMode);
 	SAFE_RELEASE(CWcullMode);
@@ -1404,8 +1296,9 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(Transparency);
 	SAFE_RELEASE(VertBufferGround);
 	SAFE_RELEASE(IndexBufferCube);
-	SAFE_RELEASE(VertBufferCube);
 
+	SAFE_RELEASE(cbPerFrameBuffer); // light 
+	
 	DIKeyboard->Unacquire();
 	DIMouse->Unacquire();
 	DirectInput->Release();

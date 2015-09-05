@@ -76,5 +76,8 @@
     <Image Include="..\Assets\Textures\numbers_test.dds">
       <Filter>Source Files</Filter>
     </Image>
+    <Image Include="fieldDDs.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
