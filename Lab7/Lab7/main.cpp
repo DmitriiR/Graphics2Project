@@ -33,8 +33,6 @@
 using namespace std;
 using namespace DirectX;
 
-
-
 #define BACKBUFFER_WIDTH	1280
 #define BACKBUFFER_HEIGHT	768
 #define MOSE_SPEED			0.005f
@@ -87,9 +85,6 @@ float moveBackForward = 0.0f;
 float camYaw = 0.0f;
 float camPitch = 0.0f;
 ///////////// CAMERA END //////////////////
-
-
-
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -261,7 +256,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	RECT window_size = { 0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT };
 	AdjustWindowRect(&window_size, WS_OVERLAPPEDWINDOW, false);
 
-	window = CreateWindow(L"DirectXApplication", L"Lab 1a Line Land", WS_OVERLAPPEDWINDOW /*& ~(WS_THICKFRAME | WS_MAXIMIZEBOX)*/,
+	window = CreateWindow(L"DirectXApplication", L"Graphics2 Demo", WS_OVERLAPPEDWINDOW /*& ~(WS_THICKFRAME | WS_MAXIMIZEBOX)*/,
 		CW_USEDEFAULT, CW_USEDEFAULT, window_size.right - window_size.left, window_size.bottom - window_size.top,
 		NULL, NULL, application, this);
 
@@ -341,6 +336,13 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewPort.MaxDepth = 1;
 
 
+///////////MAKE THE CUBE /////////////////////////
+MakeCube();///////////////////////////////////////
+//////////////////////////////////////////////////
+
+///////// MAKE THE GROUND ////////////////////////
+MakeGround();/////////////////////////////////////
+//////////////////////////////////////////////////
 // MAKES CUVBE buffers
 D3D11_BUFFER_DESC verteciesBufferDesc_cube;
 ZeroMemory(&verteciesBufferDesc_cube, sizeof(verteciesBufferDesc_cube));
@@ -362,13 +364,6 @@ vertexBufferData_cube.SysMemSlicePitch = 0;
 hr = device->CreateBuffer(&verteciesBufferDesc_cube, &vertexBufferData_cube, &VertBufferCube);
 
 
-///////////MAKE THE CUBE /////////////////////////
-MakeCube();///////////////////////////////////////
-//////////////////////////////////////////////////
-
-///////// MAKE THE GROUND ////////////////////////
-MakeGround();/////////////////////////////////////
-//////////////////////////////////////////////////
 
 
 D3D11_INPUT_ELEMENT_DESC vLayout[] =
@@ -483,11 +478,6 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	device->CreateInputLayout(vLayout, 3, VS_Star, sizeof(VS_Star), &pInputLayout);
 
 
-
-
-
-
-
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// ANTIALISING 
 	D3D11_RASTERIZER_DESC rasterizer_Description;
@@ -570,8 +560,6 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 bool DEMO_APP::Run()
 {
-
-
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is thwre the Z bugger will go 
 
 	////////////////// BACKGROUND COLOR reset
@@ -593,16 +581,11 @@ bool DEMO_APP::Run()
 	//Set the blend state for transparent objects
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
 
-	
-
 	// LIGHT ////////////////////////////////////////////////////////////////////////////
 	constbuffPerFrame.light = light;
 	deviceContext->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &constbuffPerFrame, 0, 0);
 	deviceContext->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);
 	////////////////////////////////////////////////////////////////////////////////////
-
-
-
 
 	const UINT stride = sizeof(OBJ_VERT);
 	UINT offest = 0;
@@ -831,7 +814,7 @@ bool DEMO_APP::InitializeDirectInput(HINSTANCE hInstance)
 void DEMO_APP::DetectInput(double time)
 {
 	// holds mouse info 
-	DIMOUSESTATE mouseCurrState;
+	DIMOUSESTATE mouseCurrState = {0};
 
 	// breakdown 
 	//LONG lX; 
@@ -845,7 +828,6 @@ void DEMO_APP::DetectInput(double time)
 	DIMouse->Acquire();
 
 	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
-
 	DIKeyboard->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
 
 	if (keyboardState[DIK_ESCAPE] & 0x80)
@@ -902,6 +884,8 @@ void DEMO_APP::DetectInput(double time)
 	}
 
 	UpdateCamera(deltatime);
+
+	
 
 	return;
 }
@@ -979,11 +963,11 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	temp_RotateOnY = XMMatrixRotationY(camPitch);
 
 	camRight = XMVector3TransformCoord(DefaultRight, temp_RotateOnY);
-	camForward = XMVector3TransformCoord(DefaultForward, temp_RotateOnY);
+	camForward = XMVector3TransformCoord(camTarget, temp_RotateOnY);
 	camUp = XMVector3TransformCoord(camUp, temp_RotateOnY);
 
 	camPosition += moveLeftRight*camRight;
-	camPosition += moveBackForward*camForward;
+	camPosition += moveBackForward*camForward ;
 
 	moveLeftRight = 0.0f;
 	moveBackForward = 0.0f;
@@ -1001,16 +985,16 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	RotationZ = XMMatrixRotationAxis(rotZaxis, rotz);
 	Translation = XMMatrixTranslation(0.0f, riseY, 4.0f);
 
-	//Set cube1's world space using the transformations
+	//Set world space using the transformations
 	SV_WorldMatrix = Translation * RotationX * RotationY * RotationZ;
 
 	// Loading the buffers
 	D3D11_BUFFER_DESC constBufferDesc_camera = { 0 };
 	constBufferDesc_camera.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc_camera.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	//constBufferDesc.ByteWidth = sizeof(SEND_TO_VRAM);
 	constBufferDesc_camera.ByteWidth = sizeof(XMMATRIX) * 2;
 	constBufferDesc_camera.Usage = D3D11_USAGE_DYNAMIC;
+	SAFE_RELEASE(constantBuffer_Camera);                                           // lesson learnt here, dont overwrire the camera buffer !
 
 	device->CreateBuffer(&constBufferDesc_camera, nullptr, &constantBuffer_Camera);
 
@@ -1022,7 +1006,7 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	deviceContext->Map(constantBuffer_Camera, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, scene, sizeof(scene));
 	deviceContext->Unmap(constantBuffer_Camera, 0);
-	deviceContext->VSSetConstantBuffers(1, 1, &constantBuffer_Camera);
+	deviceContext->VSSetConstantBuffers(1, 1, &constantBuffer_Camera);  // into slot 1
 
 	////////////////////////////////////////////////////////
 	/// SV_WorldMatrix
@@ -1030,15 +1014,16 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, &SV_WorldMatrix, sizeof(SV_WorldMatrix));
 	deviceContext->Unmap(constantBuffer, 0);
+	
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 
 	
 	// TODO: PART 3 STEP 6
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 
 	// Bind the depth stencil view
-	deviceContext->OMSetRenderTargets(1,          // One rendertarget view
-		&renderTargetView,						  // Render target view, created earlier
-		pDSV);									  // Depth stencil view for the render target
+	deviceContext->OMSetRenderTargets(	1,                 // One rendertarget view
+										&renderTargetView, // Render target view, created earlier
+										pDSV);			   // Depth stencil view for the render target
 
 
 
@@ -1252,7 +1237,6 @@ XMMATRIX DEMO_APP::PerspectiveProjectionMatrix(float FOV, float zFar, float zNea
 	return ProjectionMatrix;
 }
 
-
 bool DEMO_APP::ShutDown()
 {
 	// TODO: PART 1 STEP 6
@@ -1297,7 +1281,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(VertBufferGround);
 	SAFE_RELEASE(IndexBufferCube);
 
-	SAFE_RELEASE(cbPerFrameBuffer); // light 
+	SAFE_RELEASE(cbPerFrameBuffer); // for light 
 	
 	DIKeyboard->Unacquire();
 	DIMouse->Unacquire();
@@ -1306,7 +1290,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(DIKeyboard);
 	SAFE_RELEASE(DIMouse);
 	SAFE_RELEASE(DirectInput);
-	
+
 	UnregisterClass(L"DirectXApplication", application);
 
 	return true;
