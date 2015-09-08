@@ -17,6 +17,7 @@
 #include "XTime.h"
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
+//#include "PS_Diffuse.csh"
 #include "VS_Grid.csh"
 #include "PS_Grid.csh"
 #include "VS_Star.csh"
@@ -84,6 +85,7 @@ float moveBackForward = 0.0f;
 
 float camYaw = 0.0f;
 float camPitch = 0.0f;
+float cam_View_Angle = 90.0f;
 ///////////// CAMERA END //////////////////
 
 //************************************************************
@@ -560,7 +562,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 bool DEMO_APP::Run()
 {
-	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is thwre the Z bugger will go 
+	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is there the Z bugger will go 
 
 	////////////////// BACKGROUND COLOR reset
 	float color_array[4] = { 0, 0, 0.3f, 0.4f };
@@ -576,7 +578,7 @@ bool DEMO_APP::Run()
 
 	float blendFactor[] = { 0.75f, 0.75f, 0.75f, 1.0f };
 
-	// sets up the default blendstate for opaique objects 
+	// sets up the default blend state for opaque objects 
 	deviceContext->OMSetBlendState(0, 0, 0xffffffff);
 	//Set the blend state for transparent objects
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
@@ -860,7 +862,15 @@ void DEMO_APP::DetectInput(double time)
 	{
 		riseY -= movemet_speed;
 	}
-
+	if (mouseCurrState.lZ > 0)
+	{
+		
+		cam_View_Angle += 2.0f;
+	}
+	else if (mouseCurrState.lZ < 0)
+	{
+		cam_View_Angle -= 2.0f;
+	}
 // switching between first and freelook camera
 	if (first_person)
 	{
@@ -950,7 +960,7 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	//SV_Perspective = XMMatrixPerspectiveLH(1.0f, 1.0f,1.0f,10.0f);
 
 	
-	SV_Perspective  = theApp->PerspectiveProjectionMatrix(90.0f, 100.0f, 0.1f, Aspect);
+	SV_Perspective  = theApp->PerspectiveProjectionMatrix(cam_View_Angle, 100.0f, 0.1f, Aspect);
 
 	//SV_Perspective = Perspective_Projection_Matrix(90.0f, 100.0f, 0.1f, Aspect); // <<<<<< Projection 
 	// not using the roll paramenter, so setting to 0

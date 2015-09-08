@@ -10,7 +10,7 @@ struct V_IN
 };
 struct V_OUT
 {
-	float4 posH : SV_POSITION;// homoinzed rasterized, on the inbound the value is the same as the vLayour, on the output the pixel shader needs to match the PS parameter 
+	float4 posH : SV_POSITION;// homogenized rasterized, on the inbound the value is the same as the vLayour, on the output the pixel shader needs to match the PS parameter 
 	float4 col : COLOR;
 	float3 normal : NORMAL;
 };
