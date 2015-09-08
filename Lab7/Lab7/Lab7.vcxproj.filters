@@ -70,10 +70,14 @@
     <None Include="VS_Star.csh" />
     <None Include="VS_Grid.csh" />
     <None Include="PS_Grid.csh" />
+    <None Include="RuleSet.ruleset" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Assets\Textures\numbers_test.dds">
       <Filter>Source Files</Filter>
+    </Image>
+    <Image Include="fieldDDs.dds">
+      <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
 </Project>
