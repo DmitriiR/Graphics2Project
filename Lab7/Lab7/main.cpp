@@ -35,7 +35,7 @@ using namespace DirectX;
 
 #define BACKBUFFER_WIDTH	1280
 #define BACKBUFFER_HEIGHT	768
-#define MOSE_SPEED			0.005f
+#define MOSE_SPEED			0.007f
 
 //************************************************************
 //************ GLOBAL DEFINES     ****************************
@@ -961,13 +961,15 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	// finding the new direction of the camera 
 	XMMATRIX temp_RotateOnY;
 	temp_RotateOnY = XMMatrixRotationY(camPitch);
+	XMMATRIX temp_RotateOnX;
+	temp_RotateOnX = XMMatrixRotationY(camYaw);
 
-	camRight = XMVector3TransformCoord(DefaultRight, temp_RotateOnY);
+	camRight = XMVector3TransformCoord(DefaultRight, temp_RotateOnX);
 	camForward = XMVector3TransformCoord(camTarget, temp_RotateOnY);
 	camUp = XMVector3TransformCoord(camUp, temp_RotateOnY);
 
-	camPosition += moveLeftRight*camRight;
-	camPosition += moveBackForward*camForward ;
+	camPosition += moveLeftRight* camRight;
+	camPosition += moveBackForward *camForward ;
 
 	moveLeftRight = 0.0f;
 	moveBackForward = 0.0f;
@@ -1007,7 +1009,7 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	memcpy(mapped_resource.pData, scene, sizeof(scene));
 	deviceContext->Unmap(constantBuffer_Camera, 0);
 	deviceContext->VSSetConstantBuffers(1, 1, &constantBuffer_Camera);  // into slot 1
-
+	
 	////////////////////////////////////////////////////////
 	/// SV_WorldMatrix
 	float offset_for0;
@@ -1095,12 +1097,12 @@ void DEMO_APP::MakeGround(float scale)
 //	Ground_data[3] = { {  1.0f, 0.0f, -1.0f },{ 1.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } }; //3
 //	};
 
-	//for (UINT i = 0; i < 4; i++)
-	//{
-	//	XMVECTOR temp = { Ground_data[i].pos[0], Ground_data[i].pos[1], Ground_data[i].pos[2], 0 };
-	//	temp = XMVector4Transform(temp, XMMatrixScaling(scale,0, scale));
-	//	memcpy(&Ground_data[i].pos[0], &temp, sizeof(Ground_data[i]));
-	//}
+//	for (UINT i = 0; i < 4; i++)
+//	{
+//		XMVECTOR temp = { Ground_data[i].pos[0], Ground_data[i].pos[1], Ground_data[i].pos[2], 0 };
+//		temp = XMVector4Transform(temp, XMMatrixScaling(scale,0, scale));
+//		memcpy(&Ground_data[i].pos[0], &temp, sizeof(Ground_data[i]));
+//	}
 
 
 	unsigned int Ground_indicies[6] =
