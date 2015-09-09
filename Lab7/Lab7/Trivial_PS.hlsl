@@ -6,6 +6,7 @@ struct P_IN
 	float4 pos : SV_POSITION;
 	float4 uvm : COLOR;
 	float3 nrm : NORMAL;
+	float3 vew : VIEW;
 	//float4 color : COLOR;
 };
 
@@ -33,7 +34,7 @@ float4 main(P_IN input) : SV_TARGET
 
 	//input.uvm[0] = input.uvm[0] / 4 + offset;
 	float4 baseColor = baseTexture.Sample(filters[0], input.uvm.xy); // get base color
-	float4 color = baseColor;
+	float4 color;
 	//color.a = baseColor.b;
 	//color.r = baseColor.g;
 	//color.g = baseColor.r;
@@ -43,8 +44,34 @@ float4 main(P_IN input) : SV_TARGET
 	float3 light_dir		= float3(0.25f, 0.5f,  -1.0f);
 	float4 light_ambient	= float4(0.2f,	0.2f,	0.2f, 1.0f);
 	float4 light_diffuse	= float4(1.0f,	1.0f,	1.0f, 1.0f);
-	
 
+	float4 specular;
+//	float3 viewDirection = float3(input.vew, input.vew.z, input.vew.z);
+	
+	//float4 textureColor = shaderTexture.Sample(SampleType, input.tex);
+
+    color = light_diffuse;
+
+	float3 lightDir = -light_dir;
+	float lightIntensity = saturate(dot(input.nrm, lightDir));
+
+	if (lightIntensity > 0.0f)
+	{
+
+		color += (light_diffuse * lightIntensity);
+		color = saturate(color);
+
+		float3 reflection = normalize(2 * dot(lightDir, input.nrm) * input.nrm - lightDir);
+	//	specular = specularIntensity * specularColor * pow(saturate(dot(reflection, normalize(input.viewDirection))), specularPower);
+	//	specular = specularIntensity * specularColor * pow(saturate(dot(reflection, normalize(input.viewDirection))), specularPower);
+
+	}
+	color = saturate(color);
+	color = color * baseColor;
+//	color = saturate(color + specular);
+	return color;
+	return baseColor;
+/*
 	//input.nrm = normalize(input.nrm);
 	float3 finalColor;
 
@@ -56,4 +83,5 @@ float4 main(P_IN input) : SV_TARGET
 	return float4(finalColor, 1);
 
 	//return color; // return a transition based on the detail alpha
+	*/
 }

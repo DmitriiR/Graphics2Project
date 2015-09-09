@@ -15,11 +15,11 @@
 #include <iostream>
 #include <ctime>
 #include "XTime.h"
-#include "Trivial_VS.csh"
+//#include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
 //#include "PS_Diffuse.csh"
-#include "VS_Grid.csh"
-#include "PS_Grid.csh"
+//#include "VS_Grid.csh"
+//#include "PS_Grid.csh"
 #include "VS_Star.csh"
 #include "windows.h"
 #include "..\Assets\Assets\Models\Cube.h"

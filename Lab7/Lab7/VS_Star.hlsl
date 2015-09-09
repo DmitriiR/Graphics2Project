@@ -13,6 +13,7 @@ struct V_OUT
 	float4 posH : SV_POSITION;// homogenized rasterized, on the inbound the value is the same as the vLayour, on the output the pixel shader needs to match the PS parameter 
 	float4 col : COLOR;
 	float3 normal : NORMAL;
+	float3 view : VIEW;
 };
 cbuffer OBJECT : register(b0)
 {
@@ -41,6 +42,6 @@ V_OUT main(V_IN input )
 	output.col = float4(input.uvm, 0);
 	
 	output.posH = localH;
-
+//	output.view = float3(viewMatrix.);
 	return output; // send projected vertex to the rasterizer stage
 }
