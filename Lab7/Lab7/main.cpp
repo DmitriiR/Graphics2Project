@@ -16,11 +16,14 @@
 #include <ctime>
 #include "XTime.h"
 //#include "Trivial_VS.csh"
-#include "Trivial_PS.csh"
+//#include "Trivial_PS.csh"
+#include "Trivial_PS_PointL.csh"
 //#include "PS_Diffuse.csh"
 //#include "VS_Grid.csh"
 //#include "PS_Grid.csh"
 #include "VS_Star.csh"
+#include "SkyBox_PS.csh"
+#include "SkyBox_VS.csh"
 #include "windows.h"
 #include "..\Assets\Assets\Models\Cube.h"
 #include "..\Assets\Textures\Cowboy.h"
@@ -29,7 +32,7 @@
 #include <DirectXMath.h>
 #include "DDSTextureLoader.h"
 #include <dinput.h>
-
+#include <vector>
 
 using namespace std;
 using namespace DirectX;
@@ -65,6 +68,7 @@ float scaleY = 1.0f;
 
 XMMATRIX Rotationx;
 XMMATRIX Rotationz;
+XMMATRIX Rotationy;
 /////////// DERECT INPUT END
 
 ////////////// CAMERA //////////////////////
@@ -107,7 +111,7 @@ class DEMO_APP
 	float offset;
 	float movemet_speed = 0.001f;
 	bool first_person = false;
-
+	bool blend = false;
 
 	HINSTANCE						application;
 	WNDPROC							appWndProc;
@@ -122,17 +126,11 @@ class DEMO_APP
 	ID3D11InputLayout	  * pInputLayout = nullptr;
 	D3D11_VIEWPORT			viewPort;
 	DXGI_MODE_DESC			bufferDesctoFill;
-	
-	//ID3D11Buffer * VertBuffer;
-	//ID3D11Buffer * VertBuffer_triangle;
-	//ID3D11Buffer * VertBufferStar;
+
 	ID3D11Buffer * VertBufferCube = nullptr; // << unload this
-//	ID3D11Buffer * VertBufferGrid = nullptr;
 	ID3D11Buffer * VertBufferGround = 0;
-	//ID3D11Buffer * IndexBufferStar;
 	ID3D11Buffer * IndexBufferCube = nullptr;
 	ID3D11Buffer * IndexBufferGround = 0;;
-//	ID3D11Buffer * IndexBufferGrid = nullptr;
 	ID3D11Buffer * VS_Buffer = nullptr;
 	ID3D11Buffer * PS_Buffer = nullptr;
 	ID3D11Buffer * constantBuffer = nullptr;
@@ -141,13 +139,13 @@ class DEMO_APP
 
 	ID3D11Resource				* chainBuffer = nullptr;
 	ID3D11ShaderResourceView	* CubesTexture = nullptr;
+	ID3D11ShaderResourceView	* GroundTexture = nullptr;
+	ID3D11ShaderResourceView	* SkyTexture = nullptr;
 	ID3D11SamplerState			* CubesTexSamplerState = nullptr;
 
 	ID3D11PixelShader* PS = nullptr;
-	//ID3D11PixelShader* PS_Grid_pointer = nullptr;
 	ID3D11VertexShader* VS = nullptr;
 	ID3D11VertexShader* VSStar = nullptr;
-	//ID3D11VertexShader* VSGrid_p = nullptr;
 
 	ID3D11DepthStencilView* pDSV = nullptr;
 	ID3D11Buffer* cbPerFrameBuffer = nullptr;
@@ -156,6 +154,7 @@ class DEMO_APP
 
 	// All Shader Variables (Always Pre-fixed by “SV_”)
 	XMMATRIX SV_WorldMatrix = XMMatrixIdentity();
+	XMMATRIX SV_CubeMatrix = XMMatrixIdentity();
 	XMMATRIX SV_ViewMatrix = XMMatrixIdentity();
 	XMMATRIX SV_Perspective = XMMatrixIdentity();  
 	XMMATRIX RotationY = XMMatrixIdentity();
@@ -169,6 +168,32 @@ class DEMO_APP
 	ID3D11RasterizerState* rasterizerState;
 	ID3D11RasterizerState* CCWcullMode;
 	ID3D11RasterizerState* CWcullMode;
+
+	// skybox 
+
+	ID3D11Buffer* sphereIndexBuffer;
+	ID3D11Buffer* sphereVertBuffer;
+
+	ID3D11VertexShader* SKYMAP_VS;
+	ID3D11PixelShader* SKYMAP_PS;
+	ID3D10Blob* SKYMAP_VS_Buffer;
+	ID3D10Blob* SKYMAP_PS_Buffer;
+
+	ID3D11ShaderResourceView* smrv;
+
+	ID3D11DepthStencilState* DSLessEqual;
+	ID3D11RasterizerState* RSCullNone;
+
+	int NumSphereVertices;
+	int NumSphereFaces;
+
+	XMMATRIX sphereWorld;
+
+
+	// end skybox
+
+
+
 
 	struct Light
 	{
@@ -224,6 +249,7 @@ public:
 	bool InitializeDirectInput(HINSTANCE hInstance); // initialize the direct input
 	void DetectInput(double deltaTime);
 	void MakeCube();
+	void MakeSky(int LatLines, int LongLines);
 	void MakeGround(float scale = 2.0f);
 	void MakeGrid(float depth, float width);
 	XMMATRIX PerspectiveProjectionMatrix(float FOV, float zFar, float zNear, float aspect);
@@ -285,7 +311,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	swap_chain_desc.BufferCount = 1;
 	swap_chain_desc.BufferDesc = bufferDesctoFill;
 	swap_chain_desc.SampleDesc = sample_descriptor;
-	swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // set these flags and add the others as ouput
+	swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // set these flags and add the others as output
 	swap_chain_desc.OutputWindow = window;
 	swap_chain_desc.Windowed = true;
 	swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
@@ -307,19 +333,19 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	HRESULT hr = D3D11CreateDeviceAndSwapChain(
 		NULL,						    // this can be used to chose the default adapter
 		D3D_DRIVER_TYPE_HARDWARE,		// this where we can pug in your own special rasterizer, not used in the modern day.
-		NULL,							// umake this 0, 
+		NULL,							// you make this 0, 
 		D3D11_CREATE_DEVICE_DEBUG,	    // you put in interesting flags. can also use the// set flag in release 
-		pFeatures,						// this will work in the enum for backwards compataility, pass null in here.
+		pFeatures,						// this will work in the enum for backwards compatibility, pass null in here.
 		6,								// the amount levels above you uses
-		D3D11_SDK_VERSION,				// outpts
+		D3D11_SDK_VERSION,				// gives you the version
 		&swap_chain_desc,				// 
 		&chain,
 		&device,
-		&pFeatureLevel,					// this tells you wat verrsion 
+		&pFeatureLevel,					
 		&deviceContext);
 #else
 	D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, GetModuleHandle(L"d3d11.dll"), 0, nullptr, 6, D3D11_SDK_VERSION, &swap_chain_desc, &chain, &device, nullptr, nullptr);
-	// deviceContext issues comads directly to the hardware
+	// deviceContext issues commands directly to the hardware
 #endif
 
 	
@@ -329,7 +355,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//Create the Render Target
 	hr = device->CreateRenderTargetView(chainBuffer, NULL, &renderTargetView);
 
-	// this a window in the backbuffer 
+	// this a window in the back-buffer 
 	viewPort.TopLeftX = 0;
 	viewPort.TopLeftY = 0;
 	viewPort.Width = BACKBUFFER_WIDTH;
@@ -343,8 +369,13 @@ MakeCube();///////////////////////////////////////
 //////////////////////////////////////////////////
 
 ///////// MAKE THE GROUND ////////////////////////
-MakeGround();/////////////////////////////////////
+MakeGround(4.0f);/////////////////////////////////
 //////////////////////////////////////////////////
+
+///////// MAKE THE SKYBOX ////////////////////////
+MakeSky(10, 10);  ////////////////////////////////
+//////////////////////////////////////////////////
+
 // MAKES CUVBE buffers
 D3D11_BUFFER_DESC verteciesBufferDesc_cube;
 ZeroMemory(&verteciesBufferDesc_cube, sizeof(verteciesBufferDesc_cube));
@@ -469,16 +500,48 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 //	
 //	////// get TEXTURE from file 
 //	SAFE_RELEASE(tex);// !!!
-	hr = CreateDDSTextureFromFile(device, L"fieldDDs.dds", NULL, &CubesTexture);
 
+	
+	hr = CreateDDSTextureFromFile(device, L"metallock.dds", NULL, &CubesTexture);
+	hr = CreateDDSTextureFromFile(device, L"fieldDDs.dds", NULL, &GroundTexture);
+
+	device->CreateInputLayout(vLayout, 3, VS_Star, sizeof(VS_Star), &pInputLayout);
 	
 
 	// set the shaders
 	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
-	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders
+	device->CreatePixelShader(Trivial_PS_PointL, sizeof(Trivial_PS_PointL), nullptr, &PS); // first create the shaders
+	
+	// Old shader for diffuse light
+//	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders
+	// new shader for point light
+	
 
-	device->CreateInputLayout(vLayout, 3, VS_Star, sizeof(VS_Star), &pInputLayout);
+	// skybox
+	device->CreateVertexShader(SkyBox_VS, sizeof(SkyBox_VS), NULL, &SKYMAP_VS);
+	device->CreatePixelShader(SkyBox_PS, sizeof(SkyBox_PS), NULL, &SKYMAP_PS);
 
+	
+
+	ID3D11Texture2D* SMTexture = 0;
+	hr = CreateDDSTextureFromFile(device, L"SunsetSkybox.dds",NULL,&SkyTexture );
+	
+	D3D11_TEXTURE2D_DESC SMTextureDesc;
+
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
+	//SkyTexture->GetDesc(&SMViewDesc);
+	SkyTexture->GetDesc(&SMViewDesc);
+	
+//SMViewDesc.Format = SMTextureDesc.Format;
+	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+//	SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
+	SMViewDesc.TextureCube.MostDetailedMip = 0;
+
+	hr = device->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
+	SAFE_RELEASE(SMTexture);
+
+	// end skybox 
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// ANTIALISING 
@@ -500,7 +563,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	D3D11_RENDER_TARGET_BLEND_DESC rtbd;
 	ZeroMemory(&rtbd, sizeof(rtbd));
 
-	rtbd.BlendEnable			= true;
+	rtbd.BlendEnable			= blend;
 	rtbd.SrcBlend				= D3D11_BLEND_SRC_COLOR;
 	rtbd.DestBlend				= D3D11_BLEND_BLEND_FACTOR;
 	rtbd.BlendOp				= D3D11_BLEND_OP_ADD;
@@ -597,13 +660,14 @@ bool DEMO_APP::Run()
 	
 	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+	/////////// DRAW GROUND//////////////////////
+	// setting the texture for the ground
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
-	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
+	deviceContext->PSSetShaderResources(0, 1, &GroundTexture);
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	deviceContext->RSSetState(rasterizerState);
 	
 	
-	/////////// DRAW GROUND//////////////////////
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetIndexBuffer(IndexBufferGround, DXGI_FORMAT_R32_UINT, offset);
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferGround, &stride, &offest);
@@ -612,8 +676,27 @@ bool DEMO_APP::Run()
 
 	deviceContext->DrawIndexed(6, 0, 0);
 	
+	// rotate the cube
+	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
+	SV_CubeMatrix = XMMatrixRotationY(deltatime);
+	SV_CubeMatrix = SV_CubeMatrix * XMMatrixTranslation(0.0f, 0.1f, 5.0f);
+	float offset_for0;
+
+	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	memcpy(mapped_resource.pData, &SV_CubeMatrix, sizeof(SV_CubeMatrix));
+	deviceContext->Unmap(constantBuffer, 0);
+
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+	// the 0 is slot index 0, 1 is the num buffers 
 
 	/////////// DRAW CUBE/////////////////////////
+	// setting the texture for the ground
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
+	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
+	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	deviceContext->RSSetState(rasterizerState);
+
+
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferCube, &stride, &offest);
 	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
@@ -1027,7 +1110,8 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	memcpy(mapped_resource.pData, &SV_WorldMatrix, sizeof(SV_WorldMatrix));
 	deviceContext->Unmap(constantBuffer, 0);
 	
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); 
+	// the 0 is slot index 0, 1 is the num buffers 
 
 	
 	// TODO: PART 3 STEP 6
@@ -1061,12 +1145,134 @@ void DEMO_APP::MakeCube()
 
 }
 
+void DEMO_APP::MakeSky(int LatLines, int LongLines)
+{
+	NumSphereVertices = ((LatLines - 2) * LongLines) + 2;
+	NumSphereFaces = ((LatLines - 3)*(LongLines)* 2) + (LongLines * 2);
+
+	float sphereYaw = 0.0f;
+	float spherePitch = 0.0f;
+
+	std::vector<OBJ_VERT> vertices(NumSphereVertices);
+
+	XMVECTOR currVertPos = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+
+	vertices[0].pos[0] = 0.0f; //x
+	vertices[0].pos[1] = 0.0f; //y
+	vertices[0].pos[2] = 1.0f; //z
+
+	for (DWORD i = 0; i < LatLines - 2; ++i)
+	{
+		spherePitch = (i + 1) * (3.14 / (LatLines - 1));
+		Rotationx = XMMatrixRotationX(spherePitch);
+		for (DWORD j = 0; j < LongLines; ++j)
+		{
+			sphereYaw = j * (6.28 / (LongLines));
+			Rotationy = XMMatrixRotationZ(sphereYaw);
+			currVertPos = XMVector3TransformNormal(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), (Rotationx * Rotationy));
+			currVertPos = XMVector3Normalize(currVertPos);
+			vertices[i*LongLines + j + 1].pos[0] = XMVectorGetX(currVertPos);
+			vertices[i*LongLines + j + 1].pos[1] = XMVectorGetY(currVertPos);
+			vertices[i*LongLines + j + 1].pos[2] = XMVectorGetZ(currVertPos);
+		}
+	}
+
+	vertices[NumSphereVertices - 1].pos[0] = 0.0f;
+	vertices[NumSphereVertices - 1].pos[1] = 0.0f;
+	vertices[NumSphereVertices - 1].pos[2] = -1.0f;
+
+
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(OBJ_VERT) * NumSphereVertices;
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+
+	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	vertexBufferData.pSysMem = &vertices[0];
+	HRESULT hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &sphereVertBuffer);
+
+
+	std::vector<DWORD> indices(NumSphereFaces * 3);
+
+	int k = 0;
+	for (DWORD l = 0; l < LongLines - 1; ++l)
+	{
+		indices[k] = 0;
+		indices[k + 1] = l + 1;
+		indices[k + 2] = l + 2;
+		k += 3;
+	}
+
+	indices[k] = 0;
+	indices[k + 1] = LongLines;
+	indices[k + 2] = 1;
+	k += 3;
+
+	for (DWORD i = 0; i < LatLines - 3; ++i)
+	{
+		for (DWORD j = 0; j < LongLines - 1; ++j)
+		{
+			indices[k] = i*LongLines + j + 1;
+			indices[k + 1] = i*LongLines + j + 2;
+			indices[k + 2] = (i + 1)*LongLines + j + 1;
+
+			indices[k + 3] = (i + 1)*LongLines + j + 1;
+			indices[k + 4] = i*LongLines + j + 2;
+			indices[k + 5] = (i + 1)*LongLines + j + 2;
+
+			k += 6; // next quad
+		}
+
+		indices[k] = (i*LongLines) + LongLines;
+		indices[k + 1] = (i*LongLines) + 1;
+		indices[k + 2] = ((i + 1)*LongLines) + LongLines;
+
+		indices[k + 3] = ((i + 1)*LongLines) + LongLines;
+		indices[k + 4] = (i*LongLines) + 1;
+		indices[k + 5] = ((i + 1)*LongLines) + 1;
+
+		k += 6;
+	}
+
+	for (DWORD l = 0; l < LongLines - 1; ++l)
+	{
+		indices[k] = NumSphereVertices - 1;
+		indices[k + 1] = (NumSphereVertices - 1) - (l + 1);
+		indices[k + 2] = (NumSphereVertices - 1) - (l + 2);
+		k += 3;
+	}
+
+	indices[k] = NumSphereVertices - 1;
+	indices[k + 1] = (NumSphereVertices - 1) - LongLines;
+	indices[k + 2] = NumSphereVertices - 2;
+
+	D3D11_BUFFER_DESC indexBufferDesc;
+	ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+
+	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	indexBufferDesc.ByteWidth = sizeof(DWORD) * NumSphereFaces * 3;
+	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferDesc.CPUAccessFlags = 0;
+	indexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA iinitData;
+
+	iinitData.pSysMem = &indices[0];
+	device->CreateBuffer(&indexBufferDesc, &iinitData, &sphereIndexBuffer);
+}
+
 void DEMO_APP::MakeGround(float scale)
 {
 	OBJ_VERT Ground_data[4] = { 0 };
 	// Generating grid 
-	float x_pos = -1.0f;
-	float z_pos =  1.0f;
+	float x_pos = -1.0f * scale;
+	float z_pos =  1.0f *scale ;
 
 	float u = 0.0f;
 	float v = 0.0f;
@@ -1139,7 +1345,7 @@ void DEMO_APP::MakeGround(float scale)
 	SAFE_RELEASE(VertBufferGround);
 	HRESULT hr = device->CreateBuffer(&VertBufferData_ground, &VertBufferDataSR_ground, &VertBufferGround);
 	
-	// indeciies 
+	// indecies
 
 	D3D11_BUFFER_DESC indexBufferData_ground	= { 0 };
 	indexBufferData_ground.Usage				= D3D11_USAGE_IMMUTABLE;
@@ -1292,9 +1498,21 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(Transparency);
 	SAFE_RELEASE(VertBufferGround);
 	SAFE_RELEASE(IndexBufferCube);
-
+	SAFE_RELEASE(GroundTexture);
 	SAFE_RELEASE(cbPerFrameBuffer); // for light 
 	
+	//skybox
+	SAFE_RELEASE(sphereIndexBuffer);
+	SAFE_RELEASE(sphereVertBuffer);
+	SAFE_RELEASE(SKYMAP_VS);
+	SAFE_RELEASE(SKYMAP_PS);
+	SAFE_RELEASE(SKYMAP_VS_Buffer);
+	SAFE_RELEASE(SKYMAP_PS_Buffer);
+	SAFE_RELEASE(smrv);
+	SAFE_RELEASE(DSLessEqual);
+	SAFE_RELEASE(RSCullNone);
+	SAFE_RELEASE(SkyTexture);
+	//direct input
 	DIKeyboard->Unacquire();
 	DIMouse->Unacquire();
 	DirectInput->Release();

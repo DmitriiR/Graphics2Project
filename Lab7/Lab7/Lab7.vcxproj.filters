@@ -63,6 +63,9 @@
     <FxCompile Include="VS_Star.hlsl" />
     <FxCompile Include="VS_Grid.hlsl" />
     <FxCompile Include="PS_Grid.hlsl" />
+    <FxCompile Include="Trivial_PS_PointL.hlsl" />
+    <FxCompile Include="SkyBox_PS.hlsl" />
+    <FxCompile Include="SkyBox_VS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Trivial_PS.csh" />
@@ -71,6 +74,9 @@
     <None Include="VS_Grid.csh" />
     <None Include="PS_Grid.csh" />
     <None Include="RuleSet.ruleset" />
+    <None Include="Trivial_PS_PointL.csh" />
+    <None Include="SkyBox_PS.csh" />
+    <None Include="SkyBox_VS.csh" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Assets\Textures\numbers_test.dds">

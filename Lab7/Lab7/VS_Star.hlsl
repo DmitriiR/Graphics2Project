@@ -13,7 +13,7 @@ struct V_OUT
 	float4 posH : SV_POSITION;// homogenized rasterized, on the inbound the value is the same as the vLayour, on the output the pixel shader needs to match the PS parameter 
 	float4 col : COLOR;
 	float3 normal : NORMAL;
-	float3 view : VIEW;
+	float3x3 view : VIEW;
 };
 cbuffer OBJECT : register(b0)
 {
@@ -37,11 +37,13 @@ V_OUT main(V_IN input )
 	localH = mul(localH, projectionMatrix);
 	
 	float4 lightNormals = float4(input.nrm, 1);
-	output.normal = mul(lightNormals, worldMatrix);
+	output.normal = mul(input.nrm, worldMatrix);
 	
 	output.col = float4(input.uvm, 0);
 	
 	output.posH = localH;
-//	output.view = float3(viewMatrix.);
+	output.view = float3x3(	viewMatrix._11, viewMatrix._12, viewMatrix._13,
+							viewMatrix._21, viewMatrix._22, viewMatrix._23,
+							viewMatrix._31, viewMatrix._32, viewMatrix._33);
 	return output; // send projected vertex to the rasterizer stage
 }
