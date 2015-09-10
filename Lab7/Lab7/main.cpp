@@ -488,20 +488,35 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	
 	///////////////////////////////////////////////////////////////////////////////
 	// skybox
+	
+	
+	
+	
 	device->CreateVertexShader(SkyBox_VS, sizeof(SkyBox_VS), NULL, &SKYMAP_VS);
 	device->CreatePixelShader(SkyBox_PS, sizeof(SkyBox_PS), NULL, &SKYMAP_PS);
 
 	ID3D11Texture2D* SMTexture = 0;
-	hr = CreateDDSTextureFromFile(device, L"SunsetSkybox.dds",NULL,&SkyTexture );
+	
+	hr = CreateDDSTextureFromFile(device, L"Day_Skybox.dds", (ID3D11Resource**)&SMTexture,&SkyTexture );
+
+	//(ID3D11Resource**)&SMTexture
+
+	//deviceContext->PSSetShaderResources(0, 1, &GroundTexture);
+	D3D11_TEXTURE2D_DESC SMTextureDesc;
+	SMTexture->GetDesc(&SMTextureDesc);
 	
 	D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
-	SMViewDesc.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-	SMViewDesc.TextureCube.MipLevels = -1; // texture cube !
+	SMViewDesc.Format = SMTextureDesc.Format;
+	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE; 
+	SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
 	SMViewDesc.TextureCube.MostDetailedMip = 0;
-	
+	SMViewDesc.Texture3D.MipLevels = SMTextureDesc.MipLevels;
+	SMViewDesc.Texture3D.MostDetailedMip = 0;
 	hr = device->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
+	
 	SAFE_RELEASE(SMTexture);
+
+
 
 	// end skybox 
 
@@ -588,6 +603,8 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	MakeSky(10, 10);  ////////////////////////////////
 	//////////////////////////////////////////////////
 
+
+	//skybox
 	cmdesc.CullMode = D3D11_CULL_NONE;
 	hr = device->CreateRasterizerState(&cmdesc, &RSCullNone);
 	
@@ -644,8 +661,9 @@ bool DEMO_APP::Run()
 	sphereWorld = XMMatrixIdentity();
 
 	//Define sphereWorld's world space matrix
-	
-	XMMATRIX Scale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
+	XMMATRIX Scale = XMMatrixScaling(scaleX, scaleY, 1.3f);
+
+	//Scale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
 
 	//XMMATRIX Scale = XMMatrixScaling( 5.0f, 5.0f, 5.0f );
 	//Make sure the sphere is always centered around camera
@@ -661,11 +679,12 @@ bool DEMO_APP::Run()
 
 	XMMATRIX sky_Matrix  = sphereWorld * SV_ViewMatrix * SV_Perspective;
 	cbPerObject cbPerObj;
-	sky_Matrix = XMMatrixTranspose(sky_Matrix);
-	sphereWorld = XMMatrixTranspose(sphereWorld);
+	//sky_Matrix = XMMatrixTranspose(sky_Matrix);
+	//sphereWorld = XMMatrixTranspose(sphereWorld);
 
-	cbPerObj.World = sky_Matrix;
-	cbPerObj.WVP = sphereWorld;
+	XMMATRIX WVP = sphereWorld * SV_ViewMatrix * SV_Perspective;
+	cbPerObj.World = XMMatrixTranspose(sphereWorld);
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
 
 	deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &cbPerObj, 0, 0);
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
@@ -1229,7 +1248,7 @@ void DEMO_APP::MakeSky(int LatLines, int LongLines)
 
 	D3D11_BUFFER_DESC vertexBufferDesc;
 	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
+	//vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	vertexBufferDesc.ByteWidth = sizeof(OBJ_VERT) * NumSphereVertices;
 	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
