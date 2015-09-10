@@ -170,7 +170,6 @@ class DEMO_APP
 	ID3D11RasterizerState* CWcullMode;
 
 	// skybox 
-
 	ID3D11Buffer* sphereIndexBuffer;
 	ID3D11Buffer* sphereVertBuffer;
 
@@ -188,8 +187,6 @@ class DEMO_APP
 	int NumSphereFaces;
 
 	XMMATRIX sphereWorld;
-
-
 	// end skybox
 
 
@@ -217,6 +214,13 @@ class DEMO_APP
 
 	cbPerFrame constbuffPerFrame;
 
+	struct cbPerObject
+	{
+		XMMATRIX  WVP;
+		XMMATRIX  World;
+	};
+
+
 
 	struct SEND_TO_VRAM
 	{
@@ -234,12 +238,11 @@ class DEMO_APP
 		XMFLOAT4X4 projMatrix;
 
 	};
-	// TODO: PART 3 STEP 4a
+	
 	SEND_TO_VRAM toShader;
 
 public:
-	// BEGIN PART 2
-	// TODO: PART 2 STEP 1
+
 
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
@@ -291,8 +294,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
 
-	// TODO: PART 1 STEP 3a
-
 	ZeroMemory(&bufferDesctoFill, sizeof(DXGI_MODE_DESC));
 	bufferDesctoFill.Height = BACKBUFFER_WIDTH;
 	bufferDesctoFill.Width = BACKBUFFER_HEIGHT;
@@ -316,9 +317,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	swap_chain_desc.Windowed = true;
 	swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 	swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-	//swap_chain_desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	//swap_chain_desc.SampleDesc.Count = 1;
-	//swap_chain_desc.SampleDesc.Quality = 0;
 	D3D_FEATURE_LEVEL pFeatures[6] = {
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
@@ -364,41 +362,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewPort.MaxDepth = 1;
 
 
-///////////MAKE THE CUBE /////////////////////////
-MakeCube();///////////////////////////////////////
-//////////////////////////////////////////////////
-
-///////// MAKE THE GROUND ////////////////////////
-MakeGround(4.0f);/////////////////////////////////
-//////////////////////////////////////////////////
-
-///////// MAKE THE SKYBOX ////////////////////////
-MakeSky(10, 10);  ////////////////////////////////
-//////////////////////////////////////////////////
-
-// MAKES CUVBE buffers
-D3D11_BUFFER_DESC verteciesBufferDesc_cube;
-ZeroMemory(&verteciesBufferDesc_cube, sizeof(verteciesBufferDesc_cube));
-
-verteciesBufferDesc_cube.Usage = D3D11_USAGE_IMMUTABLE;
-verteciesBufferDesc_cube.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-verteciesBufferDesc_cube.ByteWidth = sizeof(Cube_data);
-verteciesBufferDesc_cube.MiscFlags = 0;
-verteciesBufferDesc_cube.CPUAccessFlags = 0;
-verteciesBufferDesc_cube.StructureByteStride = 0;
-
-D3D11_SUBRESOURCE_DATA vertexBufferData_cube;
-ZeroMemory(&vertexBufferData_cube, sizeof(vertexBufferData_cube));
-
-vertexBufferData_cube.pSysMem = Cube_data;
-vertexBufferData_cube.SysMemPitch = 0;
-vertexBufferData_cube.SysMemSlicePitch = 0;
-
-hr = device->CreateBuffer(&verteciesBufferDesc_cube, &vertexBufferData_cube, &VertBufferCube);
-
-
-
-
 D3D11_INPUT_ELEMENT_DESC vLayout[] =
 {
 	{ "POS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -430,6 +393,9 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	descDSV.Texture2D.MipSlice = 0;
 	descDSV.Flags = 0;
 
+
+
+	///////////////////////////////////////////////////////////
 	// Create the depth stencil view
 	
 	D3D11_TEXTURE2D_DESC descDepth;
@@ -448,11 +414,12 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	hr = device->CreateTexture2D(&descDepth, NULL, &pDepthStencil);
 
 
-	hr = device->CreateDepthStencilView(pDepthStencil, // Depth stencil texture
+	hr = device->CreateDepthStencilView(pDepthStencil,  // Depth stencil texture
 		&descDSV,										// Depth stencil desc
 		&pDSV);											// [out] Depth stencil view
 
-	// TEXTURE DESCRIPTION 
+
+														// TEXTURE DESCRIPTION 
 
 	D3D11_SAMPLER_DESC samplerDesc;
 	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
@@ -463,85 +430,81 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 
-	// cube texturing
 
-//	ID3D11Texture2D * tex;
-//	D3D11_TEXTURE2D_DESC tdesc;
-//	D3D11_SUBRESOURCE_DATA tbsd[numbers_test_numlevels];
-//	ZeroMemory(tbsd, sizeof(tbsd));
-//	for (unsigned int i = 0; i < numbers_test_numlevels; i++)
-//	{
-//		tbsd[i].pSysMem = &numbers_test_pixels[numbers_test_leveloffsets[i]] ;
-//		tbsd[i].SysMemPitch = sizeof(UINT) * (numbers_test_width >> i);
-//	}
-//
-//
-//	tdesc.Width = numbers_test_width ;
-//	tdesc.Height = numbers_test_height;
-//	tdesc.MipLevels = numbers_test_numlevels;
-//	tdesc.ArraySize = 1;
-//
-//	tdesc.SampleDesc.Count = 1;
-//	tdesc.SampleDesc.Quality = 0;
-//	tdesc.Usage = D3D11_USAGE_DEFAULT;
-//	tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-//	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-//
-//	tdesc.CPUAccessFlags = 0;
-//	tdesc.MiscFlags = 0;
-//
-//	device->CreateTexture2D(&tdesc, tbsd, &tex);
-//	hr = device->CreateSamplerState(&samplerDesc, &CubesTexSamplerState);
-//	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceView_desc;
-//	shaderResourceView_desc.Format = tdesc.Format;
-//	shaderResourceView_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-//	shaderResourceView_desc.Texture2D.MostDetailedMip = 0;
-//	shaderResourceView_desc.Texture2D.MipLevels = numbers_test_numlevels;
-//	
-//	////// get TEXTURE from file 
-//	SAFE_RELEASE(tex);// !!!
 
+// cube texturing the manual way code
+/*
+/	ID3D11Texture2D * tex;
+/	D3D11_TEXTURE2D_DESC tdesc;
+/	D3D11_SUBRESOURCE_DATA tbsd[numbers_test_numlevels];
+/	ZeroMemory(tbsd, sizeof(tbsd));
+/	for (unsigned int i = 0; i < numbers_test_numlevels; i++)
+/	{
+/		tbsd[i].pSysMem = &numbers_test_pixels[numbers_test_leveloffsets[i]] ;
+/		tbsd[i].SysMemPitch = sizeof(UINT) * (numbers_test_width >> i);
+/	}
+/
+/
+/	tdesc.Width = numbers_test_width ;
+/	tdesc.Height = numbers_test_height;
+/	tdesc.MipLevels = numbers_test_numlevels;
+/	tdesc.ArraySize = 1;
+/
+/	tdesc.SampleDesc.Count = 1;
+/	tdesc.SampleDesc.Quality = 0;
+/	tdesc.Usage = D3D11_USAGE_DEFAULT;
+/	tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+/	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+/
+/	tdesc.CPUAccessFlags = 0;
+/	tdesc.MiscFlags = 0;
+/
+/	device->CreateTexture2D(&tdesc, tbsd, &tex);
+/	hr = device->CreateSamplerState(&samplerDesc, &CubesTexSamplerState);
+/	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceView_desc;
+/	shaderResourceView_desc.Format = tdesc.Format;
+/	shaderResourceView_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+/	shaderResourceView_desc.Texture2D.MostDetailedMip = 0;
+/	shaderResourceView_desc.Texture2D.MipLevels = numbers_test_numlevels;
+/	
+/	////// get TEXTURE from file 
+/	SAFE_RELEASE(tex);// !!!
+*/
 	
+	/////////////////////////////////////////////////////////////////////////////////
+	// Textures 
+
 	hr = CreateDDSTextureFromFile(device, L"metallock.dds", NULL, &CubesTexture);
 	hr = CreateDDSTextureFromFile(device, L"fieldDDs.dds", NULL, &GroundTexture);
-
 	device->CreateInputLayout(vLayout, 3, VS_Star, sizeof(VS_Star), &pInputLayout);
 	
-
-	// set the shaders
+	////////////////////////////////////////////////////////////////////////////////
+	// shaders
 	device->CreateVertexShader(VS_Star, sizeof(VS_Star), nullptr, &VSStar);
 	device->CreatePixelShader(Trivial_PS_PointL, sizeof(Trivial_PS_PointL), nullptr, &PS); // first create the shaders
 	
-	// Old shader for diffuse light
-//	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders
-	// new shader for point light
-	
+	// Old shader for diffuse light:     //	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders
 
+	
+	///////////////////////////////////////////////////////////////////////////////
 	// skybox
 	device->CreateVertexShader(SkyBox_VS, sizeof(SkyBox_VS), NULL, &SKYMAP_VS);
 	device->CreatePixelShader(SkyBox_PS, sizeof(SkyBox_PS), NULL, &SKYMAP_PS);
 
-	
-
 	ID3D11Texture2D* SMTexture = 0;
 	hr = CreateDDSTextureFromFile(device, L"SunsetSkybox.dds",NULL,&SkyTexture );
 	
-	D3D11_TEXTURE2D_DESC SMTextureDesc;
-
-
 	D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
-	//SkyTexture->GetDesc(&SMViewDesc);
-	SkyTexture->GetDesc(&SMViewDesc);
-	
-//SMViewDesc.Format = SMTextureDesc.Format;
+	SMViewDesc.Format = DXGI_FORMAT_R32G32B32_FLOAT;
 	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-//	SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
+	SMViewDesc.TextureCube.MipLevels = -1; // texture cube !
 	SMViewDesc.TextureCube.MostDetailedMip = 0;
-
+	
 	hr = device->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
 	SAFE_RELEASE(SMTexture);
 
 	// end skybox 
+
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// ANTIALISING 
@@ -556,7 +519,6 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// BLENDSTATE
-
 	D3D11_BLEND_DESC blendStateDesc;
 	ZeroMemory(&blendStateDesc, sizeof(blendStateDesc));
 
@@ -584,6 +546,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	ZeroMemory(&cmdesc, sizeof(D3D11_RASTERIZER_DESC));
 
 	cmdesc.FillMode = D3D11_FILL_SOLID;
+	
 	cmdesc.CullMode = D3D11_CULL_BACK;
 
 	cmdesc.FrontCounterClockwise = true;
@@ -596,8 +559,8 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	// Member function for window resize 
 	ResizeWindow();
 
-
-	// LIGHT //////////////////////////////////////////////   setup 
+	////////////////////////////////////////////////////////
+	// LIGHT  setup 
 	D3D11_BUFFER_DESC cbbd;
 	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
 
@@ -608,15 +571,33 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	cbbd.MiscFlags = 0;
 
 	hr = device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
-
-
 	// Setting Up the light 
 	light.dir		= XMFLOAT3(0.25f,	0.5f, -1.0f);
 	light.ambient	= XMFLOAT4(0.2f,	0.2f, 0.2f, 1.0f);
 	light.diffuse	= XMFLOAT4(1.0f,	1.0f, 1.0f, 1.0f);
 
+	///////////MAKE THE CUBE /////////////////////////
+	MakeCube();///////////////////////////////////////
+	//////////////////////////////////////////////////
 
+	///////// MAKE THE GROUND ////////////////////////
+	MakeGround(4.0f);/////////////////////////////////
+	//////////////////////////////////////////////////
 
+	///////// MAKE THE SKYBOX ////////////////////////
+	MakeSky(10, 10);  ////////////////////////////////
+	//////////////////////////////////////////////////
+
+	cmdesc.CullMode = D3D11_CULL_NONE;
+	hr = device->CreateRasterizerState(&cmdesc, &RSCullNone);
+	
+	D3D11_DEPTH_STENCIL_DESC dssDesc;
+	ZeroMemory(&dssDesc, sizeof(D3D11_DEPTH_STENCIL_DESC));
+	dssDesc.DepthEnable = true;
+	dssDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dssDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+	device->CreateDepthStencilState(&dssDesc, &DSLessEqual);
 }
 
 //************************************************************
@@ -658,10 +639,58 @@ bool DEMO_APP::Run()
 	UINT offset;
 	offset = 0;
 	
-	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	///////////////////////////////////////////////////////////////////////////////////
+	// SKYBOX
+	sphereWorld = XMMatrixIdentity();
+
+	//Define sphereWorld's world space matrix
+	
+	XMMATRIX Scale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
+
+	//XMMATRIX Scale = XMMatrixScaling( 5.0f, 5.0f, 5.0f );
+	//Make sure the sphere is always centered around camera
+	Translation = XMMatrixTranslation( XMVectorGetX(camPosition), XMVectorGetY(camPosition), XMVectorGetZ(camPosition) );
+
+	//Set sphereWorld's world space using the transformations
+	sphereWorld = Scale * Translation;
+
+	deviceContext->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	deviceContext->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+
+
+
+	XMMATRIX sky_Matrix  = sphereWorld * SV_ViewMatrix * SV_Perspective;
+	cbPerObject cbPerObj;
+	sky_Matrix = XMMatrixTranspose(sky_Matrix);
+	sphereWorld = XMMatrixTranspose(sphereWorld);
+
+	cbPerObj.World = sky_Matrix;
+	cbPerObj.WVP = sphereWorld;
+
+	deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &cbPerObj, 0, 0);
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+	deviceContext->PSSetShaderResources(0, 1, &smrv);
+	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+
+	deviceContext->VSSetShader(SKYMAP_VS, 0, 0);
+	deviceContext->PSSetShader(SKYMAP_PS, 0, 0);
+	deviceContext->OMSetDepthStencilState(DSLessEqual, 0);
+	deviceContext->RSSetState(RSCullNone);
+	deviceContext->DrawIndexed(NumSphereFaces * 3, 0, 0);
+
+	deviceContext->VSSetShader(VS, 0, 0);
+	deviceContext->OMSetDepthStencilState(NULL, 0);
+
+
+
+
+
+
 
 	/////////// DRAW GROUND//////////////////////
 	// setting the texture for the ground
+	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 	deviceContext->PSSetShaderResources(0, 1, &GroundTexture);
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
@@ -674,7 +703,7 @@ bool DEMO_APP::Run()
 	deviceContext->VSSetShader(VSStar, nullptr, NULL);
 	deviceContext->PSSetShader(PS, nullptr, NULL);
 
-	deviceContext->DrawIndexed(6, 0, 0);
+	deviceContext->DrawIndexed(6, 0, 0);																	// DRAW CALL
 	
 	// rotate the cube
 	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
@@ -704,12 +733,11 @@ bool DEMO_APP::Run()
 	deviceContext->PSSetShader(PS, nullptr, NULL);
 	//culling 
 	deviceContext->RSSetState(CCWcullMode); // counter clockwise 
-	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);
+	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);													// DRAW CALL
 
 	deviceContext->RSSetState(CWcullMode);  // clockwise 
-	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);
+	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);													// DRAW CALL
 	//****************************************************************************
-	
 	return true;
 }
 
@@ -1021,7 +1049,7 @@ void DEMO_APP::DetectInput(double time)
 ////	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
 ////	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
 ////
-////	// get the vire matrix 
+////	// get the v matrix 
 ////	SV_ViewMatrix = XMMatrixInverse(NULL, XMMatrixInverse(NULL, SV_WorldMatrix));
 ////	// do input and manipulation
 ////	DetectInput(deltatime);
@@ -1089,7 +1117,7 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	constBufferDesc_camera.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	constBufferDesc_camera.ByteWidth = sizeof(XMMATRIX) * 2;
 	constBufferDesc_camera.Usage = D3D11_USAGE_DYNAMIC;
-	SAFE_RELEASE(constantBuffer_Camera);                                           // lesson learnt here, dont overwrire the camera buffer !
+	SAFE_RELEASE(constantBuffer_Camera);                                           // lesson learned here, don't overwrite the camera buffer! (// leak fixed !)
 
 	device->CreateBuffer(&constBufferDesc_camera, nullptr, &constantBuffer_Camera);
 
@@ -1113,8 +1141,6 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); 
 	// the 0 is slot index 0, 1 is the num buffers 
 
-	
-	// TODO: PART 3 STEP 6
 
 	// Bind the depth stencil view
 	deviceContext->OMSetRenderTargets(	1,                 // One rendertarget view
@@ -1142,6 +1168,25 @@ void DEMO_APP::MakeCube()
 
 	HRESULT hr = device->CreateBuffer(&indexBufferData_cube, &indexBufferDataSR_cube, &IndexBufferCube);
 
+
+	D3D11_BUFFER_DESC verteciesBufferDesc_cube;
+	ZeroMemory(&verteciesBufferDesc_cube, sizeof(verteciesBufferDesc_cube));
+
+	verteciesBufferDesc_cube.Usage = D3D11_USAGE_IMMUTABLE;
+	verteciesBufferDesc_cube.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	verteciesBufferDesc_cube.ByteWidth = sizeof(Cube_data);
+	verteciesBufferDesc_cube.MiscFlags = 0;
+	verteciesBufferDesc_cube.CPUAccessFlags = 0;
+	verteciesBufferDesc_cube.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData_cube;
+	ZeroMemory(&vertexBufferData_cube, sizeof(vertexBufferData_cube));
+
+	vertexBufferData_cube.pSysMem = Cube_data;
+	vertexBufferData_cube.SysMemPitch = 0;
+	vertexBufferData_cube.SysMemSlicePitch = 0;
+
+	hr = device->CreateBuffer(&verteciesBufferDesc_cube, &vertexBufferData_cube, &VertBufferCube);
 
 }
 
@@ -1506,8 +1551,8 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(sphereVertBuffer);
 	SAFE_RELEASE(SKYMAP_VS);
 	SAFE_RELEASE(SKYMAP_PS);
-	SAFE_RELEASE(SKYMAP_VS_Buffer);
-	SAFE_RELEASE(SKYMAP_PS_Buffer);
+//	SAFE_RELEASE(SKYMAP_VS_Buffer);
+//	SAFE_RELEASE(SKYMAP_PS_Buffer);
 	SAFE_RELEASE(smrv);
 	SAFE_RELEASE(DSLessEqual);
 	SAFE_RELEASE(RSCullNone);

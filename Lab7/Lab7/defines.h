@@ -98,5 +98,3 @@ struct SCREEN_XY
 	int Y;
 };
 
-
-
