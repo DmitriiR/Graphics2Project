@@ -129,6 +129,7 @@ class DEMO_APP
 
 	ID3D11Buffer * VertBufferCube = nullptr; // << unload this
 	ID3D11Buffer * VertBufferGround = 0;
+	ID3D11Buffer * VertBufferSky = 0;
 	ID3D11Buffer * IndexBufferCube = nullptr;
 	ID3D11Buffer * IndexBufferGround = 0;;
 	ID3D11Buffer * VS_Buffer = nullptr;
@@ -156,6 +157,7 @@ class DEMO_APP
 	XMMATRIX SV_WorldMatrix = XMMatrixIdentity();
 	XMMATRIX SV_CubeMatrix = XMMatrixIdentity();
 	XMMATRIX SV_ViewMatrix = XMMatrixIdentity();
+	
 	XMMATRIX SV_Perspective = XMMatrixIdentity();  
 	XMMATRIX RotationY = XMMatrixIdentity();
 	XMMATRIX RotationX = XMMatrixIdentity();
@@ -172,6 +174,7 @@ class DEMO_APP
 	// skybox 
 	ID3D11Buffer* sphereIndexBuffer;
 	ID3D11Buffer* sphereVertBuffer;
+	ID3D11Buffer * constantBufferSphere = nullptr;
 
 	ID3D11VertexShader* SKYMAP_VS;
 	ID3D11PixelShader* SKYMAP_PS;
@@ -421,16 +424,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 														// TEXTURE DESCRIPTION 
 
-	D3D11_SAMPLER_DESC samplerDesc;
-	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
-	samplerDesc.MinLOD = 0;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-
-
+	
 
 // cube texturing the manual way code
 /*
@@ -495,26 +489,26 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	device->CreateVertexShader(SkyBox_VS, sizeof(SkyBox_VS), NULL, &SKYMAP_VS);
 	device->CreatePixelShader(SkyBox_PS, sizeof(SkyBox_PS), NULL, &SKYMAP_PS);
 
-	ID3D11Texture2D* SMTexture = 0;
+	//ID3D11Texture2D* SMTexture = 0;
 	
-	hr = CreateDDSTextureFromFile(device, L"Day_Skybox.dds", (ID3D11Resource**)&SMTexture,&SkyTexture );
+	hr = CreateDDSTextureFromFile(device, L"SkyboxOcean.dds", NULL, &SkyTexture );
 
 	//(ID3D11Resource**)&SMTexture
 
 	//deviceContext->PSSetShaderResources(0, 1, &GroundTexture);
-	D3D11_TEXTURE2D_DESC SMTextureDesc;
-	SMTexture->GetDesc(&SMTextureDesc);
+	//D3D11_TEXTURE2D_DESC SMTextureDesc;
+	//SMTexture->GetDesc(&SMTextureDesc);
+	//
+	//D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
+	//SMViewDesc.Format = SMTextureDesc.Format;
+	//SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE; 
+	//SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
+	//SMViewDesc.TextureCube.MostDetailedMip = 0;
+	//SMViewDesc.Texture3D.MipLevels = SMTextureDesc.MipLevels;
+	//SMViewDesc.Texture3D.MostDetailedMip = 0;
+	//hr = device->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
 	
-	D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
-	SMViewDesc.Format = SMTextureDesc.Format;
-	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE; 
-	SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
-	SMViewDesc.TextureCube.MostDetailedMip = 0;
-	SMViewDesc.Texture3D.MipLevels = SMTextureDesc.MipLevels;
-	SMViewDesc.Texture3D.MostDetailedMip = 0;
-	hr = device->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
-	
-	SAFE_RELEASE(SMTexture);
+	//SAFE_RELEASE(SMTexture);
 
 
 
@@ -604,6 +598,19 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	//////////////////////////////////////////////////
 
 
+	D3D11_SAMPLER_DESC samplerDesc;
+	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+
+
+	hr = device->CreateSamplerState(&samplerDesc, &CubesTexSamplerState);
+
+
 	//skybox
 	cmdesc.CullMode = D3D11_CULL_NONE;
 	hr = device->CreateRasterizerState(&cmdesc, &RSCullNone);
@@ -615,6 +622,17 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	dssDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 
 	device->CreateDepthStencilState(&dssDesc, &DSLessEqual);
+
+	D3D11_BUFFER_DESC constBufferDescSphere = { 0 };
+	constBufferDescSphere.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constBufferDescSphere.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constBufferDescSphere.ByteWidth = sizeof(SV_WorldMatrix) * 2;
+	constBufferDescSphere.Usage = D3D11_USAGE_DYNAMIC;
+
+
+	device->CreateBuffer(&constBufferDescSphere, nullptr, &constantBufferSphere);
+
+
 }
 
 //************************************************************
@@ -661,52 +679,58 @@ bool DEMO_APP::Run()
 	sphereWorld = XMMatrixIdentity();
 
 	//Define sphereWorld's world space matrix
-	XMMATRIX Scale = XMMatrixScaling(scaleX, scaleY, 1.3f);
+	//XMMATRIX Scale = XMMatrixScaling(scaleX, scaleY, 1.3f);
 
-	//Scale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
+	XMMATRIX Scale = XMMatrixScaling(50.0f, 50.0f, 50.0f);
 
 	//XMMATRIX Scale = XMMatrixScaling( 5.0f, 5.0f, 5.0f );
 	//Make sure the sphere is always centered around camera
+	
 	Translation = XMMatrixTranslation( XMVectorGetX(camPosition), XMVectorGetY(camPosition), XMVectorGetZ(camPosition) );
 
 	//Set sphereWorld's world space using the transformations
 	sphereWorld = Scale * Translation;
-
-	deviceContext->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-	deviceContext->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
-
-
-
-	XMMATRIX sky_Matrix  = sphereWorld * SV_ViewMatrix * SV_Perspective;
+	
+	// get the device context loaded.
+	
+	//XMMATRIX sky_Matrix  = sphereWorld * SV_ViewMatrix * SV_Perspective;
+	
+	XMMATRIX WVP = sphereWorld *SV_ViewMatrix *SV_Perspective;
+	
 	cbPerObject cbPerObj;
 	//sky_Matrix = XMMatrixTranspose(sky_Matrix);
 	//sphereWorld = XMMatrixTranspose(sphereWorld);
 
-	XMMATRIX WVP = sphereWorld * SV_ViewMatrix * SV_Perspective;
-	cbPerObj.World = XMMatrixTranspose(sphereWorld);
-	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	cbPerObj.World	= XMMatrixTranspose(sphereWorld);
+	cbPerObj.WVP	= XMMatrixTranspose(WVP);
 
-	deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &cbPerObj, 0, 0);
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
-	deviceContext->PSSetShaderResources(0, 1, &smrv);
+	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
+	deviceContext->Map(constantBufferSphere, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	memcpy(mapped_resource.pData, &cbPerObj, sizeof(cbPerObj));
+	deviceContext->Unmap(constantBufferSphere, 0);
+
+	
+	//deviceContext->UpdateSubresource(constantBufferShere, 0, NULL, &cbPerObj, 0, 0);
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBufferSphere);
+	deviceContext->PSSetShaderResources(0, 1, &SkyTexture);
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
-
-	deviceContext->VSSetShader(SKYMAP_VS, 0, 0);
-	deviceContext->PSSetShader(SKYMAP_PS, 0, 0);
-	deviceContext->OMSetDepthStencilState(DSLessEqual, 0);
 	deviceContext->RSSetState(RSCullNone);
-	deviceContext->DrawIndexed(NumSphereFaces * 3, 0, 0);
+
+	deviceContext->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+	deviceContext->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	
+//	deviceContext->IASetInputLayout(pInputLayout);
+	deviceContext->VSSetShader(SKYMAP_VS, nullptr, NULL);
+	deviceContext->PSSetShader(SKYMAP_PS, nullptr, NULL);
+	deviceContext->OMSetDepthStencilState(DSLessEqual, 0);
+	
+	deviceContext->DrawIndexed(NumSphereFaces * 3, 0, 0);													// DRAW CALL sky 
 
 	deviceContext->VSSetShader(VS, 0, 0);
 	deviceContext->OMSetDepthStencilState(NULL, 0);
-
-
-
-
-
-
-
-	/////////// DRAW GROUND//////////////////////
+	deviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH, 1.0f, 0.0f);
+	
+	/////////// DRAW GROUND/////////////////////////////////////////////////////////////////////////////////////////////
 	// setting the texture for the ground
 	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	
@@ -714,7 +738,6 @@ bool DEMO_APP::Run()
 	deviceContext->PSSetShaderResources(0, 1, &GroundTexture);
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	deviceContext->RSSetState(rasterizerState);
-	
 	
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetIndexBuffer(IndexBufferGround, DXGI_FORMAT_R32_UINT, offset);
@@ -725,10 +748,10 @@ bool DEMO_APP::Run()
 	deviceContext->DrawIndexed(6, 0, 0);																	// DRAW CALL
 	
 	// rotate the cube
-	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
+	mapped_resource = { 0 };
 	SV_CubeMatrix = XMMatrixRotationY(deltatime);
 	SV_CubeMatrix = SV_CubeMatrix * XMMatrixTranslation(0.0f, 0.1f, 5.0f);
-	float offset_for0;
+	
 
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, &SV_CubeMatrix, sizeof(SV_CubeMatrix));
@@ -760,9 +783,6 @@ bool DEMO_APP::Run()
 	return true;
 }
 
-//************************************************************
-//************ DESTRUCTION ***********************************
-//************************************************************
 
 
 //************************************************************
@@ -775,6 +795,7 @@ bool DEMO_APP::Run()
 DEMO_APP * theApp = NULL;
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 {
 	srand(unsigned int(time(0)));
@@ -1030,60 +1051,6 @@ void DEMO_APP::DetectInput(double time)
 	return;
 }
 
-//void DEMO_APP::Update(double deltaTime)
-//{
-//
-//	//Keep the cubes rotating
-//	rot += 1.0f * deltaTime;
-//	if (rot > 6.28f)
-//		rot = 0.0f;
-//
-//	//Reset cube1World
-//	SV_WorldMatrix = XMMatrixIdentity();
-//
-//	//Define cube1's world space matrix
-//	///////////////**************new**************////////////////////
-//	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-//	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-//	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-//
-//	// rotate through the access 
-//	Rotation = XMMatrixRotationAxis(rotyaxis, rot);
-//	Rotationx = XMMatrixRotationAxis(rotxaxis, rotx);
-//	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
-//	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
-//
-//	//Set cube1's world space using the transformations
-//	SV_WorldMatrix = Translation * Rotation * Rotationx * Rotationz;
-//	///////////////**************new**************////////////////////
-//
-//	//	camRotationMatrix = XMMatrixRotationRollPitchYaw(camPitch, camYaw, 0);
-//
-////	XMVECTOR rotyaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-////	XMVECTOR rotzaxis = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-////	XMVECTOR rotxaxis = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-////
-////	Rotation = XMMatrixRotationAxis(rotyaxis, rot);
-////	Rotationx = XMMatrixRotationAxis(rotxaxis, rotx);
-////	Rotationz = XMMatrixRotationAxis(rotzaxis, rotz);
-////	Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
-////
-////	// get the v matrix 
-////	SV_ViewMatrix = XMMatrixInverse(NULL, XMMatrixInverse(NULL, SV_WorldMatrix));
-////	// do input and manipulation
-////	DetectInput(deltatime);
-////
-////	//inverse it back
-////	SV_ViewMatrix = XMMatrixInverse(NULL, XMMatrixInverse(NULL, SV_WorldMatrix));
-////
-////
-////	SV_WorldMatrix = Translation * Rotation * Rotationx * Rotationz;
-////
-////	//	camTarget = XMVector3TransformCoord(DefaultForward, camRotationMatrix);
-////	//	camTarget = XMVector3Normalize(camTarget);
-//
-//}
-
 void DEMO_APP::UpdateCamera(double deltaTime)
 {
 	
@@ -1211,6 +1178,9 @@ void DEMO_APP::MakeCube()
 
 void DEMO_APP::MakeSky(int LatLines, int LongLines)
 {
+
+
+
 	NumSphereVertices = ((LatLines - 2) * LongLines) + 2;
 	NumSphereFaces = ((LatLines - 3)*(LongLines)* 2) + (LongLines * 2);
 
@@ -1329,6 +1299,79 @@ void DEMO_APP::MakeSky(int LatLines, int LongLines)
 
 	iinitData.pSysMem = &indices[0];
 	device->CreateBuffer(&indexBufferDesc, &iinitData, &sphereIndexBuffer);
+
+	// new code for skybox
+	OBJ_VERT sky_data[8] = { 0 };
+
+	// Generating grid 
+	sky_data[0] = { { -1.0f, 1.0f , 1.0f },{ 0.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+	sky_data[1] = { {  1.0f, 1.0f , 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+	sky_data[2] = { { -1.0f, 1.0f ,-1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+	sky_data[3] = { {  1.0f, 1.0f ,-1.0f },{ 1.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+
+	sky_data[4] = { { -1.0f,-1.0f , 1.0f },{ 0.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+	sky_data[5] = { { 1.0f, -1.0f , 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+	sky_data[6] = { { -1.0f,-1.0f ,-1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+	sky_data[7] = { { 1.0f, -1.0f ,-1.0f },{ 1.0f, 1.0f, 0.0f },{ 0.000000f, 1.000000f, 0.000000f } };
+
+	unsigned int sky_indicies[72] =
+	{
+		0, 1, 2,
+		1, 3, 2,
+
+		2, 3, 6,
+		3, 7, 6,
+
+		0, 2, 4,
+		2, 6, 4,
+		
+		1, 0, 5,
+		0, 4, 5,
+		
+		3, 1, 7, 
+		1, 5, 7,
+		
+		7, 6, 5, 
+		6, 4, 5
+	};
+
+	// verts 
+	D3D11_BUFFER_DESC VertBufferData_Sky = { 0 };
+	VertBufferData_Sky.Usage = D3D11_USAGE_IMMUTABLE;
+	VertBufferData_Sky.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	VertBufferData_Sky.ByteWidth = sizeof(OBJ_VERT) * 4;
+	VertBufferData_Sky.MiscFlags = 0;
+	VertBufferData_Sky.CPUAccessFlags = 0;
+	VertBufferData_Sky.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA VertBufferDataSR_Sky = { 0 };
+	VertBufferDataSR_Sky.pSysMem = sky_data;
+	VertBufferDataSR_Sky.SysMemPitch = 0;
+	VertBufferDataSR_Sky.SysMemSlicePitch = 0;
+
+	SAFE_RELEASE(VertBufferSky);
+	HRESULT hr = device->CreateBuffer(&VertBufferData_Sky, &VertBufferDataSR_Sky, &VertBufferSky);
+
+	// indecies
+
+	D3D11_BUFFER_DESC indexBufferData_ground = { 0 };
+	indexBufferData_ground.Usage = D3D11_USAGE_IMMUTABLE;
+	indexBufferData_ground.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_ground.ByteWidth = sizeof(UINT) * 6;
+	indexBufferData_ground.MiscFlags = 0;
+	indexBufferData_ground.CPUAccessFlags = 0;
+	indexBufferData_ground.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA indexBufferDataSR_ground = { 0 };
+	indexBufferDataSR_ground.pSysMem = Ground_indicies;
+	indexBufferDataSR_ground.SysMemPitch = 0;
+	indexBufferDataSR_ground.SysMemSlicePitch = 0;
+
+	SAFE_RELEASE(IndexBufferGround);
+	hr = device->CreateBuffer(&indexBufferData_ground, &indexBufferDataSR_ground, &IndexBufferGround);
+
+
+
 }
 
 void DEMO_APP::MakeGround(float scale)
@@ -1504,6 +1547,8 @@ void DEMO_APP::MakeGrid(float depth, float width)
 
 }
 
+
+
 XMMATRIX DEMO_APP::PerspectiveProjectionMatrix(float FOV, float zFar, float zNear, float aspect)
 {
 	XMMATRIX ProjectionMatrix;
@@ -1518,6 +1563,12 @@ XMMATRIX DEMO_APP::PerspectiveProjectionMatrix(float FOV, float zFar, float zNea
 
 	return ProjectionMatrix;
 }
+
+
+//************************************************************
+//************ DESTRUCTION ***********************************
+//************************************************************
+
 
 bool DEMO_APP::ShutDown()
 {
@@ -1564,7 +1615,8 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(IndexBufferCube);
 	SAFE_RELEASE(GroundTexture);
 	SAFE_RELEASE(cbPerFrameBuffer); // for light 
-	
+	SAFE_RELEASE(constantBufferSphere);
+	SAFE_RELEASE(VertBufferSky);
 	//skybox
 	SAFE_RELEASE(sphereIndexBuffer);
 	SAFE_RELEASE(sphereVertBuffer);
@@ -1572,7 +1624,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(SKYMAP_PS);
 //	SAFE_RELEASE(SKYMAP_VS_Buffer);
 //	SAFE_RELEASE(SKYMAP_PS_Buffer);
-	SAFE_RELEASE(smrv);
+//	SAFE_RELEASE(smrv);
 	SAFE_RELEASE(DSLessEqual);
 	SAFE_RELEASE(RSCullNone);
 	SAFE_RELEASE(SkyTexture);
