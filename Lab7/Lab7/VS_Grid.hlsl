@@ -1,4 +1,7 @@
 #pragma pack_matrix(row_major)
+
+
+
 struct V_IN
 {
 	//float3 posL : POSITION;
@@ -7,6 +10,9 @@ struct V_IN
 	float3 nrm : NRM;
 	//float4 color : COLOR;
 };
+
+
+
 struct V_OUT
 {
 	//float4 posH : SV_POSITION;// homoinzed rasterized, on the inbound the value is the same as the vLayour, on the output the pixel shader needs to match the PS parameter 

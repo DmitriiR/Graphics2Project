@@ -1,11 +1,6 @@
 #pragma pack_matrix(row_major) // this changes the matrix major
 
 
-cbuffer OBJECT : register(b0)
-{
-	float4x4 worldMatrix;
-	float4x4 WVP;
-}
 
 //V_OUT main(V_IN input )
 //{
@@ -31,6 +26,11 @@ cbuffer OBJECT : register(b0)
 //	return output; // send projected vertex to the rasterizer stage
 //}
 
+cbuffer OBJECT : register(b0)
+{
+	float4x4 worldMatrix;
+	float4x4 WVP;
+}
 
 struct SKYMAP_VS_OUTPUT	
 {

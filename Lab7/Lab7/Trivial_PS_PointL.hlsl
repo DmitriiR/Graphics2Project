@@ -56,6 +56,9 @@ float4 main(P_IN input) : SV_TARGET
 	float lightIntensity = saturate(dot(lightDir, input.nrm));
 
 	color = light_diffuse * baseColor * lightIntensity + light_ambient  * baseColor;
+
+
+
 //	if (lightIntensity > 0.0f)
 //	{
 

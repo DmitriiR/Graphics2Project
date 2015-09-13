@@ -24,6 +24,8 @@
 #include "VS_Star.csh"
 #include "SkyBox_PS.csh"
 #include "SkyBox_VS.csh"
+#include "PS_Point.csh"
+#include "VS_Point.csh"
 #include "windows.h"
 #include "..\Assets\Assets\Models\Cube.h"
 #include "..\Assets\Textures\Cowboy.h"
@@ -33,6 +35,8 @@
 #include "DDSTextureLoader.h"
 #include <dinput.h>
 #include <vector>
+#include <iostream>
+#include <fstream>
 
 using namespace std;
 using namespace DirectX;
@@ -129,10 +133,14 @@ class DEMO_APP
 
 	ID3D11Buffer * VertBufferCube = nullptr; // << unload this
 	ID3D11Buffer * VertBufferGround = 0;
+	ID3D11Buffer * VertBufferModel = 0;
 	ID3D11Buffer * VertBufferSky = 0;
 	ID3D11Buffer * IndexBufferCube = nullptr;
 	ID3D11Buffer * IndexBufferGround = 0;
 	ID3D11Buffer * IndexBufferSky = 0;
+	ID3D11Buffer * IndexBufferModel = 0;
+
+
 	ID3D11Buffer * VS_Buffer = nullptr;
 	ID3D11Buffer * PS_Buffer = nullptr;
 	ID3D11Buffer * constantBuffer = nullptr;
@@ -180,6 +188,9 @@ class DEMO_APP
 
 	ID3D11VertexShader* SKYMAP_VS;
 	ID3D11PixelShader* SKYMAP_PS;
+	ID3D11VertexShader* POINT_VS;
+	ID3D11PixelShader* POINT_PS;
+
 	ID3D10Blob* SKYMAP_VS_Buffer;
 	ID3D10Blob* SKYMAP_PS_Buffer;
 
@@ -269,6 +280,10 @@ public:
 	void MakeGrid(float depth, float width);
 	XMMATRIX PerspectiveProjectionMatrix(float FOV, float zFar, float zNear, float aspect);
 	void PointLight1(Light * _light);
+	bool LoadObj(char * filename,
+		std::vector < XMVECTOR > & out_vertices,
+		std::vector < XMVECTOR > & out_uvs,
+		std::vector < XMVECTOR > & out_normals);
 	//void Update();
 };
 
@@ -608,9 +623,13 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	light.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
 
-
-
 	hr = device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+
+	device->CreateVertexShader(VS_Point, sizeof(VS_Point), NULL, &POINT_VS);
+	device->CreatePixelShader(point_PS, sizeof(point_PS), NULL, &POINT_PS);
+	
+
+
 	///////////MAKE THE CUBE /////////////////////////
 	MakeCube();///////////////////////////////////////
 	//////////////////////////////////////////////////
@@ -622,6 +641,14 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	///////// MAKE THE SKYBOX ////////////////////////
 	MakeSky(10, 10);  ////////////////////////////////
 	//////////////////////////////////////////////////
+	std::vector< XMVECTOR > vertices;
+	std::vector< XMVECTOR > uvs;
+	std::vector< XMVECTOR > normals;
+
+
+	LoadObj("teapot.obj", vertices, uvs, normals);
+
+
 
 
 	D3D11_SAMPLER_DESC samplerDesc;
@@ -667,6 +694,9 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 bool DEMO_APP::Run()
 {
+
+	deviceContext->IASetInputLayout(pInputLayout);
+
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, NULL); // this is there the Z bugger will go 
 
 	////////////////// BACKGROUND COLOR reset
@@ -689,10 +719,14 @@ bool DEMO_APP::Run()
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
 
 
-
+	
 
 	// LIGHT ////////////////////////////////////////////////////////////////////////////
 	
+	deviceContext->VSSetShader(POINT_VS, nullptr, NULL);
+	deviceContext->PSSetShader(POINT_PS, nullptr, NULL);
+
+
 	XMVECTOR lightVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 
 	lightVector = XMVector3TransformCoord(lightVector, SV_WorldMatrix);
@@ -1622,6 +1656,181 @@ void DEMO_APP::PointLight1(Light * _light)
 }
 
 
+
+
+
+
+bool DEMO_APP::LoadObj(char * filename, 
+	std::vector < XMVECTOR > & out_vertices,
+	std::vector < XMVECTOR > & out_uvs,
+	std::vector < XMVECTOR > & out_normals)
+{
+	
+	struct vert
+	{
+		float x;
+		float y;
+		float z;
+	};
+
+	std::vector< unsigned int > vertexIndices, uvIndices, normalIndices;
+
+	std::vector< XMVECTOR > temp_vertices;
+	std::vector< XMVECTOR > temp_uvs;
+	std::vector< XMVECTOR > temp_normals;
+
+
+	FILE * file = fopen("teapot.obj", "r");
+	
+	while (true)
+	{
+
+		char lineHeader[128];
+		int res = fscanf(file, "%s", lineHeader);
+
+		if (res == EOF)
+			break;
+
+		//OBJ_VERT vertex;
+
+		if (strcmp(lineHeader, "v") == 0)
+		{
+			vert vertex;
+			fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
+		
+			XMVECTOR vec = XMVectorSet(vertex.x, vertex.y, vertex.z, 0.0f);
+		
+			temp_vertices.push_back(vec);
+		}
+		else if (strcmp(lineHeader, "vt") == 0)
+		{
+			vert vertex;
+			fscanf(file, "%f %f\n", &vertex.x, &vertex.y, &vertex.z);
+			XMVECTOR vec = XMVectorSet(vertex.x, vertex.y, vertex.z, 0.0f);
+			temp_uvs.push_back(vec);
+
+		}
+		else if (strcmp(lineHeader, "vn") == 0)
+		{
+		vert vertex;
+	    fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
+		XMVECTOR vec = XMVectorSet(vertex.x, vertex.y, vertex.z, 0.0f);
+
+		temp_normals.push_back(vec);
+	     }
+
+		else if (strcmp(lineHeader, "f") == 0)
+		{
+			std::string vertex1, vertex2, vertex3;
+
+			unsigned int vertexIndex[3], uvIndex[3], normalIndex[3];
+			int matches = fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &vertexIndex[0], &uvIndex[0], &normalIndex[0], &vertexIndex[1], &uvIndex[1], &normalIndex[1], &vertexIndex[2], &uvIndex[2], &normalIndex[2]);
+
+			vertexIndices.push_back(vertexIndex[0]);
+			vertexIndices.push_back(vertexIndex[1]);
+			vertexIndices.push_back(vertexIndex[2]);
+			uvIndices.push_back(uvIndex[0]);
+			uvIndices.push_back(uvIndex[1]);
+			uvIndices.push_back(uvIndex[2]);
+			normalIndices.push_back(normalIndex[0]);
+			normalIndices.push_back(normalIndex[1]);
+			normalIndices.push_back(normalIndex[2]);
+		}
+	}
+	vert vertex;
+	// processing 
+
+	for (unsigned int i = 0; i < vertexIndices.size(); i++)
+	{
+
+		unsigned int vertexIndex = vertexIndices[i];
+		XMVECTOR vertex = temp_vertices[vertexIndex - 1];
+		out_vertices.push_back(vertex);
+	}
+
+	for (unsigned int i = 0; i < uvIndices.size(); i++)
+	{
+
+		unsigned int vertexIndex = uvIndices[i];
+		XMVECTOR vertex = temp_uvs[vertexIndex - 1];
+		out_uvs.push_back(vertex);
+	}
+
+	for (unsigned int i = 0; i < normalIndices.size(); i++)
+	{
+
+		unsigned int vertexIndex = normalIndices[i];
+		XMVECTOR vertex = temp_normals[vertexIndex - 1];
+		out_normals.push_back(vertex);
+	}
+
+
+	OBJ_VERT * object_data = new OBJ_VERT[out_vertices.size()];
+
+	for (unsigned int i = 0; i < out_vertices.size(); i++)
+	{
+
+		object_data[i].pos[0] = XMVectorGetX(out_vertices[i]);
+		object_data[i].pos[1] = XMVectorGetY(out_vertices[i]);
+		object_data[i].pos[2] = XMVectorGetZ(out_vertices[i]);
+
+		object_data[i].uvw[0] = XMVectorGetX(out_uvs[i]);
+		object_data[i].uvw[1] = XMVectorGetY(out_uvs[i]);
+		object_data[i].uvw[2] = XMVectorGetZ(out_uvs[i]);
+
+		object_data[i].nrm[0] = XMVectorGetX(out_normals[i]);
+		object_data[i].nrm[1] = XMVectorGetY(out_normals[i]);
+		object_data[i].nrm[2] = XMVectorGetZ(out_normals[i]);
+
+	}
+
+	unsigned int model_indicies[100] =
+	{
+		0
+	};
+
+
+
+	// loading verts 
+	// verts 
+	D3D11_BUFFER_DESC VertBufferData_model = { 0 };
+	VertBufferData_model.Usage = D3D11_USAGE_IMMUTABLE;
+	VertBufferData_model.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	VertBufferData_model.ByteWidth = sizeof(OBJ_VERT) * 4;
+	VertBufferData_model.MiscFlags = 0;
+	VertBufferData_model.CPUAccessFlags = 0;
+	VertBufferData_model.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA VertBufferDataSR_model = { 0 };
+	VertBufferDataSR_model.pSysMem = object_data;
+	VertBufferDataSR_model.SysMemPitch = 0;
+	VertBufferDataSR_model.SysMemSlicePitch = 0;
+
+	SAFE_RELEASE(VertBufferModel);
+	HRESULT hr = device->CreateBuffer(&VertBufferData_model, &VertBufferDataSR_model, &VertBufferModel);
+
+
+	D3D11_BUFFER_DESC indexBufferData_model = { 0 };
+	indexBufferData_model.Usage = D3D11_USAGE_IMMUTABLE;
+	indexBufferData_model.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_model.ByteWidth = sizeof(float) * vertexIndices.size();
+	indexBufferData_model.MiscFlags = 0;
+	indexBufferData_model.CPUAccessFlags = 0;
+	indexBufferData_model.StructureByteStride = 0;
+
+	D3D11_SUBRESOURCE_DATA indexBufferDataSR_Model = { 0 };
+	indexBufferDataSR_Model.pSysMem = model_indicies;
+	indexBufferDataSR_Model.SysMemPitch = 0;
+	indexBufferDataSR_Model.SysMemSlicePitch = 0;
+
+	SAFE_RELEASE(IndexBufferModel);
+	hr = device->CreateBuffer(&indexBufferData_model, &indexBufferDataSR_Model, &IndexBufferModel);
+
+//	delete[] object_data;
+	return true;
+}
+
+
 //************************************************************
 //************ DESTRUCTION ***********************************
 //************************************************************
@@ -1681,12 +1890,17 @@ bool DEMO_APP::ShutDown()
 //	SAFE_RELEASE(sphereVertBuffer);
 	SAFE_RELEASE(SKYMAP_VS);
 	SAFE_RELEASE(SKYMAP_PS);
+	SAFE_RELEASE(POINT_VS);
+	SAFE_RELEASE(POINT_PS);
+
 //	SAFE_RELEASE(SKYMAP_VS_Buffer);
 //	SAFE_RELEASE(SKYMAP_PS_Buffer);
 //	SAFE_RELEASE(smrv);
 	SAFE_RELEASE(DSLessEqual);
 	SAFE_RELEASE(RSCullNone);
 	SAFE_RELEASE(SkyTexture);
+	SAFE_RELEASE(VertBufferModel);
+	SAFE_RELEASE(IndexBufferModel);
 	//direct input
 	DIKeyboard->Unacquire();
 	DIMouse->Unacquire();
