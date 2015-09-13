@@ -131,7 +131,8 @@ class DEMO_APP
 	ID3D11Buffer * VertBufferGround = 0;
 	ID3D11Buffer * VertBufferSky = 0;
 	ID3D11Buffer * IndexBufferCube = nullptr;
-	ID3D11Buffer * IndexBufferGround = 0;;
+	ID3D11Buffer * IndexBufferGround = 0;
+	ID3D11Buffer * IndexBufferSky = 0;
 	ID3D11Buffer * VS_Buffer = nullptr;
 	ID3D11Buffer * PS_Buffer = nullptr;
 	ID3D11Buffer * constantBuffer = nullptr;
@@ -175,6 +176,7 @@ class DEMO_APP
 	ID3D11Buffer* sphereIndexBuffer;
 	ID3D11Buffer* sphereVertBuffer;
 	ID3D11Buffer * constantBufferSphere = nullptr;
+	ID3D11Buffer * constantBufferSky = nullptr;
 
 	ID3D11VertexShader* SKYMAP_VS;
 	ID3D11PixelShader* SKYMAP_PS;
@@ -201,14 +203,21 @@ class DEMO_APP
 		{
 			ZeroMemory(this, sizeof(Light));
 		}
-
-		XMFLOAT3	dir;
-		float		pad;
-		XMFLOAT4	ambient;
-		XMFLOAT4	diffuse;
+		XMFLOAT3 dir;
+		float pad1;
+		///////////////**************new**************////////////////////
+		XMFLOAT3 pos;
+		float range;
+		XMFLOAT3 att;
+		float pad2;
+		///////////////**************new**************////////////////////
+		XMFLOAT4 ambient;
+		XMFLOAT4 diffuse;
 	};
 
+	// Setting Up the light 
 	Light light;
+
 
 	struct cbPerFrame
 	{
@@ -259,6 +268,7 @@ public:
 	void MakeGround(float scale = 2.0f);
 	void MakeGrid(float depth, float width);
 	XMMATRIX PerspectiveProjectionMatrix(float FOV, float zFar, float zNear, float aspect);
+	void PointLight1(Light * _light);
 	//void Update();
 };
 
@@ -479,6 +489,16 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	
 	// Old shader for diffuse light:     //	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), nullptr, &PS); // first create the shaders
 
+	//////////////////////////////////////////////////////////////////////////////////
+	// POINT LIGHT 
+
+
+
+
+
+
+
+
 	
 	///////////////////////////////////////////////////////////////////////////////
 	// skybox
@@ -579,12 +599,18 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	cbbd.CPUAccessFlags = 0;
 	cbbd.MiscFlags = 0;
 
-	hr = device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
-	// Setting Up the light 
-	light.dir		= XMFLOAT3(0.25f,	0.5f, -1.0f);
-	light.ambient	= XMFLOAT4(0.2f,	0.2f, 0.2f, 1.0f);
-	light.diffuse	= XMFLOAT4(1.0f,	1.0f, 1.0f, 1.0f);
 
+
+	light.pos =		XMFLOAT3(0.0f, 0.0f, 0.0f);
+	light.range =	100.0f;
+	light.att =		XMFLOAT3(0.0f, 0.2f, 0.0f);
+	light.ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+	light.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+
+
+
+	hr = device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
 	///////////MAKE THE CUBE /////////////////////////
 	MakeCube();///////////////////////////////////////
 	//////////////////////////////////////////////////
@@ -630,7 +656,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	constBufferDescSphere.Usage = D3D11_USAGE_DYNAMIC;
 
 
-	device->CreateBuffer(&constBufferDescSphere, nullptr, &constantBufferSphere);
+	device->CreateBuffer(&constBufferDescSphere, nullptr, &constantBufferSky);
 
 
 }
@@ -662,11 +688,32 @@ bool DEMO_APP::Run()
 	//Set the blend state for transparent objects
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
 
+
+
+
 	// LIGHT ////////////////////////////////////////////////////////////////////////////
+	
+	XMVECTOR lightVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+
+	lightVector = XMVector3TransformCoord(lightVector, SV_WorldMatrix);
+
+	light.pos.x = XMVectorGetX(lightVector);
+	light.pos.y = XMVectorGetY(lightVector);
+	light.pos.z = XMVectorGetZ(lightVector);
+	
+	
 	constbuffPerFrame.light = light;
 	deviceContext->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &constbuffPerFrame, 0, 0);
 	deviceContext->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);
 	////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 
 	const UINT stride = sizeof(OBJ_VERT);
 	UINT offest = 0;
@@ -705,26 +752,26 @@ bool DEMO_APP::Run()
 	cbPerObj.WVP	= XMMatrixTranspose(WVP);
 
 	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
-	deviceContext->Map(constantBufferSphere, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	deviceContext->Map(constantBufferSky, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, &cbPerObj, sizeof(cbPerObj));
-	deviceContext->Unmap(constantBufferSphere, 0);
+	deviceContext->Unmap(constantBufferSky, 0);
 
 	
 	//deviceContext->UpdateSubresource(constantBufferShere, 0, NULL, &cbPerObj, 0, 0);
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBufferSphere);
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBufferSky);
 	deviceContext->PSSetShaderResources(0, 1, &SkyTexture);
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	deviceContext->RSSetState(RSCullNone);
 
-	deviceContext->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
-	deviceContext->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	deviceContext->IASetVertexBuffers(0, 1, &VertBufferSky, &stride, &offset);
+	deviceContext->IASetIndexBuffer(IndexBufferSky, DXGI_FORMAT_R32_UINT, 0);
 	
 //	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->VSSetShader(SKYMAP_VS, nullptr, NULL);
 	deviceContext->PSSetShader(SKYMAP_PS, nullptr, NULL);
 	deviceContext->OMSetDepthStencilState(DSLessEqual, 0);
 	
-	deviceContext->DrawIndexed(NumSphereFaces * 3, 0, 0);													// DRAW CALL sky 
+//	deviceContext->DrawIndexed(72, 0, 0);													// DRAW CALL sky 
 
 	deviceContext->VSSetShader(VS, 0, 0);
 	deviceContext->OMSetDepthStencilState(NULL, 0);
@@ -732,7 +779,7 @@ bool DEMO_APP::Run()
 	
 	/////////// DRAW GROUND/////////////////////////////////////////////////////////////////////////////////////////////
 	// setting the texture for the ground
-	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 	
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 	deviceContext->PSSetShaderResources(0, 1, &GroundTexture);
@@ -1179,7 +1226,7 @@ void DEMO_APP::MakeCube()
 void DEMO_APP::MakeSky(int LatLines, int LongLines)
 {
 
-
+/*
 
 	NumSphereVertices = ((LatLines - 2) * LongLines) + 2;
 	NumSphereFaces = ((LatLines - 3)*(LongLines)* 2) + (LongLines * 2);
@@ -1299,7 +1346,7 @@ void DEMO_APP::MakeSky(int LatLines, int LongLines)
 
 	iinitData.pSysMem = &indices[0];
 	device->CreateBuffer(&indexBufferDesc, &iinitData, &sphereIndexBuffer);
-
+*/
 	// new code for skybox
 	OBJ_VERT sky_data[8] = { 0 };
 
@@ -1354,21 +1401,21 @@ void DEMO_APP::MakeSky(int LatLines, int LongLines)
 
 	// indecies
 
-	D3D11_BUFFER_DESC indexBufferData_ground = { 0 };
-	indexBufferData_ground.Usage = D3D11_USAGE_IMMUTABLE;
-	indexBufferData_ground.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferData_ground.ByteWidth = sizeof(UINT) * 6;
-	indexBufferData_ground.MiscFlags = 0;
-	indexBufferData_ground.CPUAccessFlags = 0;
-	indexBufferData_ground.StructureByteStride = 0;
+	D3D11_BUFFER_DESC indexBufferData_sky = { 0 };
+	indexBufferData_sky.Usage = D3D11_USAGE_IMMUTABLE;
+	indexBufferData_sky.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferData_sky.ByteWidth = sizeof(UINT) * 72;
+	indexBufferData_sky.MiscFlags = 0;
+	indexBufferData_sky.CPUAccessFlags = 0;
+	indexBufferData_sky.StructureByteStride = 0;
 
-	D3D11_SUBRESOURCE_DATA indexBufferDataSR_ground = { 0 };
-	indexBufferDataSR_ground.pSysMem = Ground_indicies;
-	indexBufferDataSR_ground.SysMemPitch = 0;
-	indexBufferDataSR_ground.SysMemSlicePitch = 0;
+	D3D11_SUBRESOURCE_DATA indexBufferDataSR_sky = { 0 };
+	indexBufferDataSR_sky.pSysMem = sky_indicies;
+	indexBufferDataSR_sky.SysMemPitch = 0;
+	indexBufferDataSR_sky.SysMemSlicePitch = 0;
 
-	SAFE_RELEASE(IndexBufferGround);
-	hr = device->CreateBuffer(&indexBufferData_ground, &indexBufferDataSR_ground, &IndexBufferGround);
+	SAFE_RELEASE(IndexBufferSky);
+	hr = device->CreateBuffer(&indexBufferData_sky, &indexBufferDataSR_sky, &IndexBufferSky);
 
 
 
@@ -1564,6 +1611,16 @@ XMMATRIX DEMO_APP::PerspectiveProjectionMatrix(float FOV, float zFar, float zNea
 	return ProjectionMatrix;
 }
 
+void DEMO_APP::PointLight1(Light * _light)
+{
+//	light->pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
+//	light->range = 100.0f;
+//	light->att = XMFLOAT3(0.0f, 0.2f, 0.0f);
+//	light->ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+//	light->diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+}
+
 
 //************************************************************
 //************ DESTRUCTION ***********************************
@@ -1616,10 +1673,12 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(GroundTexture);
 	SAFE_RELEASE(cbPerFrameBuffer); // for light 
 	SAFE_RELEASE(constantBufferSphere);
+	SAFE_RELEASE(constantBufferSky);
 	SAFE_RELEASE(VertBufferSky);
+	SAFE_RELEASE(IndexBufferSky);
 	//skybox
-	SAFE_RELEASE(sphereIndexBuffer);
-	SAFE_RELEASE(sphereVertBuffer);
+	//SAFE_RELEASE(sphereIndexBuffer);
+//	SAFE_RELEASE(sphereVertBuffer);
 	SAFE_RELEASE(SKYMAP_VS);
 	SAFE_RELEASE(SKYMAP_PS);
 //	SAFE_RELEASE(SKYMAP_VS_Buffer);

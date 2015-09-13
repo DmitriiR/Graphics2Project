@@ -4,7 +4,7 @@ struct P_IN
 	//float3 posL : POSITION;
 	float4 pos : SV_POSITION;
 	float3 uvm : COLOR;
-		float3 nrm : NRM;
+	float3 nrm : NRM;
 	//float4 color : COLOR;
 };
 

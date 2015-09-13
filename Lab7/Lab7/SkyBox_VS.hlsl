@@ -36,6 +36,7 @@ struct SKYMAP_VS_OUTPUT
 {
 	float4 Pos : SV_POSITION;
 	float4 texCoord : TEXCOORD;
+	
 };
 
 SKYMAP_VS_OUTPUT main(float3 inPos : POS, float3 inTexCoord : UVM, float3 normal : NRM)

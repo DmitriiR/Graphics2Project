@@ -4,6 +4,8 @@ struct SKYMAP_VS_OUTPUT	// output structure for skymap vertex shader
 {
 	float4 Pos : SV_POSITION;
 	float3 texCoord : TEXCOORD;
+
+
 };
 
 
