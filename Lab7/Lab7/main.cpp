@@ -185,6 +185,7 @@ class DEMO_APP
 	ID3D11Buffer* sphereVertBuffer;
 	ID3D11Buffer * constantBufferSphere = nullptr;
 	ID3D11Buffer * constantBufferSky = nullptr;
+	ID3D11Buffer * constantBufferPointLight = nullptr;
 
 	ID3D11VertexShader* SKYMAP_VS;
 	ID3D11PixelShader* SKYMAP_PS;
@@ -216,12 +217,12 @@ class DEMO_APP
 		}
 		XMFLOAT3 dir;
 		float pad1;
-		///////////////**************new**************////////////////////
+		
 		XMFLOAT3 pos;
 		float range;
 		XMFLOAT3 att;
 		float pad2;
-		///////////////**************new**************////////////////////
+	
 		XMFLOAT4 ambient;
 		XMFLOAT4 diffuse;
 	};
@@ -507,14 +508,16 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	//////////////////////////////////////////////////////////////////////////////////
 	// POINT LIGHT 
 
+	D3D11_BUFFER_DESC constBufferDescLight = { 0 };
+	constBufferDescLight.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constBufferDescLight.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constBufferDescLight.ByteWidth = sizeof(SV_WorldMatrix) * 2;
+	constBufferDescLight.Usage = D3D11_USAGE_DYNAMIC;
 
+	constBuffer_resource = { 0 };
+	device->CreateBuffer(&constBufferDesc, nullptr, &constantBufferPointLight);
 
-
-
-
-
-
-	
+		
 	///////////////////////////////////////////////////////////////////////////////
 	// skybox
 	
@@ -626,7 +629,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	hr = device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
 
 	device->CreateVertexShader(VS_Point, sizeof(VS_Point), NULL, &POINT_VS);
-	device->CreatePixelShader(point_PS, sizeof(point_PS), NULL, &POINT_PS);
+	device->CreatePixelShader(PS_Point, sizeof(PS_Point), NULL, &POINT_PS);
 	
 
 
@@ -641,6 +644,8 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	///////// MAKE THE SKYBOX ////////////////////////
 	MakeSky(10, 10);  ////////////////////////////////
 	//////////////////////////////////////////////////
+	
+	
 	std::vector< XMVECTOR > vertices;
 	std::vector< XMVECTOR > uvs;
 	std::vector< XMVECTOR > normals;
@@ -707,7 +712,6 @@ bool DEMO_APP::Run()
 	// Create the depth stencil view
 	deviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 1);
 	
-	
 	//********************************************************************************************//
 	// setting up blending
 
@@ -727,6 +731,21 @@ bool DEMO_APP::Run()
 	deviceContext->PSSetShader(POINT_PS, nullptr, NULL);
 
 
+	cbPerObject cbPerObj2;
+	//sky_Matrix = XMMatrixTranspose(sky_Matrix);
+	//sphereWorld = XMMatrixTranspose(sphereWorld);
+	XMMATRIX WVP2 = SV_ViewMatrix * SV_Perspective;
+	cbPerObj2.World = XMMatrixTranspose(SV_WorldMatrix);
+	cbPerObj2.WVP = XMMatrixTranspose(WVP2);
+
+	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
+	deviceContext->Map(constantBufferSky, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	memcpy(mapped_resource.pData, &cbPerObj2, sizeof(cbPerObj2));
+	deviceContext->Unmap(constantBufferSky, 0);
+
+
+
+
 	XMVECTOR lightVector = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 
 	lightVector = XMVector3TransformCoord(lightVector, SV_WorldMatrix);
@@ -737,8 +756,9 @@ bool DEMO_APP::Run()
 	
 	
 	constbuffPerFrame.light = light;
-	deviceContext->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &constbuffPerFrame, 0, 0);
-	deviceContext->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);
+//	deviceContext->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &constbuffPerFrame, 0, 0);
+//	deviceContext->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);
+
 	////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -758,25 +778,15 @@ bool DEMO_APP::Run()
 	///////////////////////////////////////////////////////////////////////////////////
 	// SKYBOX
 	sphereWorld = XMMatrixIdentity();
-
-	//Define sphereWorld's world space matrix
-	//XMMATRIX Scale = XMMatrixScaling(scaleX, scaleY, 1.3f);
-
+	
 	XMMATRIX Scale = XMMatrixScaling(50.0f, 50.0f, 50.0f);
-
-	//XMMATRIX Scale = XMMatrixScaling( 5.0f, 5.0f, 5.0f );
-	//Make sure the sphere is always centered around camera
-	
 	Translation = XMMatrixTranslation( XMVectorGetX(camPosition), XMVectorGetY(camPosition), XMVectorGetZ(camPosition) );
-
-	//Set sphereWorld's world space using the transformations
 	sphereWorld = Scale * Translation;
-	
 	// get the device context loaded.
 	
 	//XMMATRIX sky_Matrix  = sphereWorld * SV_ViewMatrix * SV_Perspective;
-	
-	XMMATRIX WVP = sphereWorld *SV_ViewMatrix *SV_Perspective;
+
+	XMMATRIX WVP = sphereWorld * SV_ViewMatrix * SV_Perspective;
 	
 	cbPerObject cbPerObj;
 	//sky_Matrix = XMMatrixTranspose(sky_Matrix);
@@ -785,7 +795,7 @@ bool DEMO_APP::Run()
 	cbPerObj.World	= XMMatrixTranspose(sphereWorld);
 	cbPerObj.WVP	= XMMatrixTranspose(WVP);
 
-	D3D11_MAPPED_SUBRESOURCE mapped_resource = { 0 };
+	mapped_resource = { 0 };
 	deviceContext->Map(constantBufferSky, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, &cbPerObj, sizeof(cbPerObj));
 	deviceContext->Unmap(constantBufferSky, 0);
@@ -794,6 +804,8 @@ bool DEMO_APP::Run()
 	//deviceContext->UpdateSubresource(constantBufferShere, 0, NULL, &cbPerObj, 0, 0);
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBufferSky);
 	deviceContext->PSSetShaderResources(0, 1, &SkyTexture);
+
+
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
 	deviceContext->RSSetState(RSCullNone);
 
@@ -805,7 +817,7 @@ bool DEMO_APP::Run()
 	deviceContext->PSSetShader(SKYMAP_PS, nullptr, NULL);
 	deviceContext->OMSetDepthStencilState(DSLessEqual, 0);
 	
-//	deviceContext->DrawIndexed(72, 0, 0);													// DRAW CALL sky 
+	deviceContext->DrawIndexed(72, 0, 0);													// DRAW CALL sky 
 
 	deviceContext->VSSetShader(VS, 0, 0);
 	deviceContext->OMSetDepthStencilState(NULL, 0);
@@ -813,6 +825,21 @@ bool DEMO_APP::Run()
 	
 	/////////// DRAW GROUND/////////////////////////////////////////////////////////////////////////////////////////////
 	// setting the texture for the ground
+
+	// rotate the cube
+	mapped_resource = { 0 };
+
+
+	XMMATRIX scene[2] = { SV_WorldMatrix, SV_Perspective };
+	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	memcpy(mapped_resource.pData, scene, sizeof(scene));
+	deviceContext->Unmap(constantBuffer, 0);
+	deviceContext->VSSetConstantBuffers(1, 1, &constantBuffer);  // into slot 1
+
+	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	memcpy(mapped_resource.pData, &scene, sizeof(SV_WorldMatrix) * 2);
+	deviceContext->Unmap(constantBuffer, 0);
+
 
 	
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
@@ -823,8 +850,13 @@ bool DEMO_APP::Run()
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetIndexBuffer(IndexBufferGround, DXGI_FORMAT_R32_UINT, offset);
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferGround, &stride, &offest);
-	deviceContext->VSSetShader(VSStar, nullptr, NULL);
-	deviceContext->PSSetShader(PS, nullptr, NULL);
+
+
+	deviceContext->VSSetShader(POINT_VS, nullptr, NULL);
+	deviceContext->PSSetShader(POINT_PS, nullptr, NULL);
+
+//	deviceContext->VSSetShader(VSStar, nullptr, NULL);
+//	deviceContext->PSSetShader(PS, nullptr, NULL);
 
 	deviceContext->DrawIndexed(6, 0, 0);																	// DRAW CALL
 	
@@ -835,10 +867,10 @@ bool DEMO_APP::Run()
 	
 
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
-	memcpy(mapped_resource.pData, &SV_CubeMatrix, sizeof(SV_CubeMatrix));
+	memcpy(mapped_resource.pData, &SV_CubeMatrix, sizeof(SV_CubeMatrix) * 2);
 	deviceContext->Unmap(constantBuffer, 0);
 
-	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+
 	// the 0 is slot index 0, 1 is the num buffers 
 
 	/////////// DRAW CUBE/////////////////////////
@@ -852,8 +884,8 @@ bool DEMO_APP::Run()
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferCube, &stride, &offest);
 	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
-	deviceContext->VSSetShader(VSStar, nullptr, NULL);
-	deviceContext->PSSetShader(PS, nullptr, NULL);
+//	deviceContext->VSSetShader(VSStar, nullptr, NULL);
+// deviceContext->PSSetShader(PS, nullptr, NULL);
 	//culling 
 	deviceContext->RSSetState(CCWcullMode); // counter clockwise 
 	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);													// DRAW CALL
@@ -1786,7 +1818,7 @@ bool DEMO_APP::LoadObj(char * filename,
 
 	unsigned int model_indicies[100] =
 	{
-		0
+		
 	};
 
 
@@ -1871,6 +1903,7 @@ bool DEMO_APP::ShutDown()
 	SAFE_RELEASE(CWcullMode);
 	SAFE_RELEASE(constantBuffer_offset); 
 	SAFE_RELEASE(constantBuffer_Camera);
+	SAFE_RELEASE(constantBufferPointLight);
 //	SAFE_RELEASE(IndexBufferGrid);
 	SAFE_RELEASE(VS_Buffer);
 	SAFE_RELEASE(PS_Buffer);

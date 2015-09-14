@@ -66,6 +66,8 @@
     <FxCompile Include="Trivial_PS_PointL.hlsl" />
     <FxCompile Include="SkyBox_PS.hlsl" />
     <FxCompile Include="SkyBox_VS.hlsl" />
+    <FxCompile Include="PS_Point.hlsl" />
+    <FxCompile Include="VS_Point.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Trivial_PS.csh" />
@@ -77,6 +79,8 @@
     <None Include="Trivial_PS_PointL.csh" />
     <None Include="SkyBox_PS.csh" />
     <None Include="SkyBox_VS.csh" />
+    <None Include="VS_Point.csh" />
+    <None Include="PS_Point.csh" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Assets\Textures\numbers_test.dds">

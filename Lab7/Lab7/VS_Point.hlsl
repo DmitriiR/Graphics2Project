@@ -19,21 +19,23 @@ struct VS_OUTPUT
 {
 	//float4 posH : SV_POSITION;// homoinzed rasterized, on the inbound the value is the same as the vLayour, on the output the pixel shader needs to match the PS parameter 
 
+	float4		wPos : POS;
+	float3      TexCoord : UVM;
+	float4      normal : NRM;
+	
 	float4		pos : SV_POSITION;
-	float3      TexCoord : TEXCOORD;
-	float3      normal : NORMAL;
 };
 
-VS_OUTPUT VS(float3 inPos : POSITION, float3 inTexCoord : TEXCOORD, float3 normal : NORMAL)
+VS_OUTPUT main(V_IN input)
 {
 	VS_OUTPUT output;
 
-	output.pos = mul(float4(inPos, 1.0f), WVP).xyzw;
+	output.pos = mul(input.pos, WVP).xyzw;
+	output.wPos = mul(input.pos, worldMatrix).xyzw;
+	output.normal = mul( float4(input.nrm,1.0f), worldMatrix).xyzw;
 
-	output.worldPos = mul(float4(inPos, 1.0f), worldMatrix).xyzw;
-	output.nrm = mul(normal, worldMatrix);
+	output.TexCoord = input.uvm;
 
-	output.TexCoord = float3(inTexCoord,1);
 
 	return output;
 }
