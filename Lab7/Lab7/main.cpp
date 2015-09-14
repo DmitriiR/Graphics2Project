@@ -284,7 +284,8 @@ public:
 	bool LoadObj(char * filename,
 		std::vector < XMVECTOR > & out_vertices,
 		std::vector < XMVECTOR > & out_uvs,
-		std::vector < XMVECTOR > & out_normals);
+		std::vector < XMVECTOR > & out_normals
+		);
 	//void Update();
 };
 
@@ -401,7 +402,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	D3D11_BUFFER_DESC constBufferDesc = { 0 };
 	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	constBufferDesc.ByteWidth = sizeof(SV_WorldMatrix);
+	constBufferDesc.ByteWidth = sizeof(SV_WorldMatrix) * 2;
 	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 
 	D3D11_SUBRESOURCE_DATA constBuffer_resource = { 0 };
@@ -651,7 +652,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	std::vector< XMVECTOR > normals;
 
 
-	LoadObj("teapot.obj", vertices, uvs, normals);
+	LoadObj("teapot.obj", vertices, uvs, normals );
 
 
 
@@ -834,11 +835,11 @@ bool DEMO_APP::Run()
 	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
 	memcpy(mapped_resource.pData, scene, sizeof(scene));
 	deviceContext->Unmap(constantBuffer, 0);
-	deviceContext->VSSetConstantBuffers(1, 1, &constantBuffer);  // into slot 1
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);  // into slot 1
 
-	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
-	memcpy(mapped_resource.pData, &scene, sizeof(SV_WorldMatrix) * 2);
-	deviceContext->Unmap(constantBuffer, 0);
+//	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+//	memcpy(mapped_resource.pData, &scene, sizeof(SV_WorldMatrix) * 2);
+//	deviceContext->Unmap(constantBuffer, 0);
 
 
 	
@@ -852,13 +853,18 @@ bool DEMO_APP::Run()
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferGround, &stride, &offest);
 
 
-	deviceContext->VSSetShader(POINT_VS, nullptr, NULL);
-	deviceContext->PSSetShader(POINT_PS, nullptr, NULL);
+//	deviceContext->VSSetShader(POINT_VS, nullptr, NULL);
+//	deviceContext->PSSetShader(POINT_PS, nullptr, NULL);
 
-//	deviceContext->VSSetShader(VSStar, nullptr, NULL);
-//	deviceContext->PSSetShader(PS, nullptr, NULL);
+	deviceContext->VSSetShader(VSStar, nullptr, NULL);
+	deviceContext->PSSetShader(PS, nullptr, NULL);
 
 	deviceContext->DrawIndexed(6, 0, 0);																	// DRAW CALL
+	
+	
+
+	/////////// DRAW CUBE/////////////////////////
+	// setting the texture for the ground
 	
 	// rotate the cube
 	mapped_resource = { 0 };
@@ -873,8 +879,6 @@ bool DEMO_APP::Run()
 
 	// the 0 is slot index 0, 1 is the num buffers 
 
-	/////////// DRAW CUBE/////////////////////////
-	// setting the texture for the ground
 	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
 	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
 	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
@@ -884,8 +888,8 @@ bool DEMO_APP::Run()
 	deviceContext->IASetInputLayout(pInputLayout);
 	deviceContext->IASetVertexBuffers(0, 1, &VertBufferCube, &stride, &offest);
 	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
-//	deviceContext->VSSetShader(VSStar, nullptr, NULL);
-// deviceContext->PSSetShader(PS, nullptr, NULL);
+	deviceContext->VSSetShader(VSStar, nullptr, NULL);
+    deviceContext->PSSetShader(PS, nullptr, NULL);
 	//culling 
 	deviceContext->RSSetState(CCWcullMode); // counter clockwise 
 	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);													// DRAW CALL
@@ -893,6 +897,44 @@ bool DEMO_APP::Run()
 	deviceContext->RSSetState(CWcullMode);  // clockwise 
 	deviceContext->DrawIndexed(ARRAYSIZE(Cube_indicies), 0, 0);													// DRAW CALL
 	//****************************************************************************
+	
+	
+	//////////////////////////////////////////////////////////////////////////////
+	// Draw the model 
+
+	// VertBufferModel
+	// rotate the cube
+	mapped_resource = { 0 };
+	SV_CubeMatrix = XMMatrixIdentity();
+	SV_CubeMatrix = SV_CubeMatrix * XMMatrixTranslation(0.0f, 0.1f, 5.0f);
+
+
+	deviceContext->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+	memcpy(mapped_resource.pData, &SV_CubeMatrix, sizeof(SV_CubeMatrix) * 2);
+	deviceContext->Unmap(constantBuffer, 0);
+
+
+	// the 0 is slot index 0, 1 is the num buffers 
+
+	deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer); // the 0 is slot index 0, 1 is the num buffers 
+	deviceContext->PSSetShaderResources(0, 1, &CubesTexture);
+	deviceContext->PSSetSamplers(0, 1, &CubesTexSamplerState);
+	deviceContext->RSSetState(rasterizerState);
+
+
+	deviceContext->IASetInputLayout(pInputLayout);
+	deviceContext->IASetVertexBuffers(0, 1, &VertBufferModel, &stride, &offest);
+//	deviceContext->IASetIndexBuffer(IndexBufferCube, DXGI_FORMAT_R32_UINT, offest);
+	deviceContext->VSSetShader(VSStar, nullptr, NULL);
+	deviceContext->PSSetShader(PS, nullptr, NULL);
+	//culling 
+	deviceContext->RSSetState(CCWcullMode); // counter clockwise 
+	deviceContext->Draw(1536, 0);													// DRAW CALL
+
+	deviceContext->RSSetState(CWcullMode); // counter clockwise 
+	deviceContext->Draw(1536, 0);
+	
+	
 	return true;
 }
 
@@ -1245,8 +1287,6 @@ void DEMO_APP::UpdateCamera(double deltaTime)
 	deviceContext->OMSetRenderTargets(	1,                 // One rendertarget view
 										&renderTargetView, // Render target view, created earlier
 										pDSV);			   // Depth stencil view for the render target
-
-
 
 }
 
@@ -1660,8 +1700,6 @@ void DEMO_APP::MakeGrid(float depth, float width)
 
 }
 
-
-
 XMMATRIX DEMO_APP::PerspectiveProjectionMatrix(float FOV, float zFar, float zNear, float aspect)
 {
 	XMMATRIX ProjectionMatrix;
@@ -1688,14 +1726,11 @@ void DEMO_APP::PointLight1(Light * _light)
 }
 
 
-
-
-
-
 bool DEMO_APP::LoadObj(char * filename, 
 	std::vector < XMVECTOR > & out_vertices,
 	std::vector < XMVECTOR > & out_uvs,
-	std::vector < XMVECTOR > & out_normals)
+	std::vector < XMVECTOR > & out_normals
+	)
 {
 	
 	struct vert
@@ -1797,22 +1832,22 @@ bool DEMO_APP::LoadObj(char * filename,
 	}
 
 
-	OBJ_VERT * object_data = new OBJ_VERT[out_vertices.size()];
+	OBJ_VERT * model_data = new OBJ_VERT[out_vertices.size()];
 
 	for (unsigned int i = 0; i < out_vertices.size(); i++)
 	{
 
-		object_data[i].pos[0] = XMVectorGetX(out_vertices[i]);
-		object_data[i].pos[1] = XMVectorGetY(out_vertices[i]);
-		object_data[i].pos[2] = XMVectorGetZ(out_vertices[i]);
+		model_data[i].pos[0] = XMVectorGetX(out_vertices[i]);
+		model_data[i].pos[1] = XMVectorGetY(out_vertices[i]);
+		model_data[i].pos[2] = XMVectorGetZ(out_vertices[i]);
 
-		object_data[i].uvw[0] = XMVectorGetX(out_uvs[i]);
-		object_data[i].uvw[1] = XMVectorGetY(out_uvs[i]);
-		object_data[i].uvw[2] = XMVectorGetZ(out_uvs[i]);
+		model_data[i].uvw[0] = XMVectorGetX(out_uvs[i]);
+		model_data[i].uvw[1] = XMVectorGetY(out_uvs[i]);
+		model_data[i].uvw[2] = XMVectorGetZ(out_uvs[i]);
 
-		object_data[i].nrm[0] = XMVectorGetX(out_normals[i]);
-		object_data[i].nrm[1] = XMVectorGetY(out_normals[i]);
-		object_data[i].nrm[2] = XMVectorGetZ(out_normals[i]);
+		model_data[i].nrm[0] = XMVectorGetX(out_normals[i]);
+		model_data[i].nrm[1] = XMVectorGetY(out_normals[i]);
+		model_data[i].nrm[2] = XMVectorGetZ(out_normals[i]);
 
 	}
 
@@ -1828,13 +1863,13 @@ bool DEMO_APP::LoadObj(char * filename,
 	D3D11_BUFFER_DESC VertBufferData_model = { 0 };
 	VertBufferData_model.Usage = D3D11_USAGE_IMMUTABLE;
 	VertBufferData_model.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	VertBufferData_model.ByteWidth = sizeof(OBJ_VERT) * 4;
+	VertBufferData_model.ByteWidth = sizeof(OBJ_VERT) * out_vertices.size();
 	VertBufferData_model.MiscFlags = 0;
 	VertBufferData_model.CPUAccessFlags = 0;
 	VertBufferData_model.StructureByteStride = 0;
 
 	D3D11_SUBRESOURCE_DATA VertBufferDataSR_model = { 0 };
-	VertBufferDataSR_model.pSysMem = object_data;
+	VertBufferDataSR_model.pSysMem = model_data;
 	VertBufferDataSR_model.SysMemPitch = 0;
 	VertBufferDataSR_model.SysMemSlicePitch = 0;
 
@@ -1842,21 +1877,21 @@ bool DEMO_APP::LoadObj(char * filename,
 	HRESULT hr = device->CreateBuffer(&VertBufferData_model, &VertBufferDataSR_model, &VertBufferModel);
 
 
-	D3D11_BUFFER_DESC indexBufferData_model = { 0 };
-	indexBufferData_model.Usage = D3D11_USAGE_IMMUTABLE;
-	indexBufferData_model.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferData_model.ByteWidth = sizeof(float) * vertexIndices.size();
-	indexBufferData_model.MiscFlags = 0;
-	indexBufferData_model.CPUAccessFlags = 0;
-	indexBufferData_model.StructureByteStride = 0;
-
-	D3D11_SUBRESOURCE_DATA indexBufferDataSR_Model = { 0 };
-	indexBufferDataSR_Model.pSysMem = model_indicies;
-	indexBufferDataSR_Model.SysMemPitch = 0;
-	indexBufferDataSR_Model.SysMemSlicePitch = 0;
-
-	SAFE_RELEASE(IndexBufferModel);
-	hr = device->CreateBuffer(&indexBufferData_model, &indexBufferDataSR_Model, &IndexBufferModel);
+//	D3D11_BUFFER_DESC indexBufferData_model = { 0 };
+//	indexBufferData_model.Usage = D3D11_USAGE_IMMUTABLE;
+//	indexBufferData_model.BindFlags = D3D11_BIND_INDEX_BUFFER;
+//	indexBufferData_model.ByteWidth = sizeof(float) * vertexIndices.size();
+//	indexBufferData_model.MiscFlags = 0;
+//	indexBufferData_model.CPUAccessFlags = 0;
+//	indexBufferData_model.StructureByteStride = 0;
+//
+//	D3D11_SUBRESOURCE_DATA indexBufferDataSR_Model = { 0 };
+//	indexBufferDataSR_Model.pSysMem = model_indicies;
+//	indexBufferDataSR_Model.SysMemPitch = 0;
+//	indexBufferDataSR_Model.SysMemSlicePitch = 0;
+//
+//	SAFE_RELEASE(IndexBufferModel);
+//	hr = device->CreateBuffer(&indexBufferData_model, &indexBufferDataSR_Model, &IndexBufferModel);
 
 //	delete[] object_data;
 	return true;
