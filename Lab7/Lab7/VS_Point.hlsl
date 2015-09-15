@@ -11,9 +11,20 @@ struct V_IN
 
 cbuffer OBJECT : register(b0)
 {
-	float4x4 worldMatrix;
-	float4x4 WVP;
+	float4x4 viewMatrix; // view 
+	float4x4 WVP;	      // projection
 }
+
+cbuffer OBJECT2 : register(b1)
+{
+	float4x4 worldMatrix; // view 
+	    
+}
+cbuffer OBJECT3 : register(b2)
+{
+	float4 lightPosition_in; // view 
+}
+
 
 struct VS_OUTPUT
 {
@@ -21,56 +32,27 @@ struct VS_OUTPUT
 
 	float4		wPos : POS;
 	float3      TexCoord : UVM;
-	float4      normal : NRM;
-	
+	float3      normal : NRM;
 	float4		pos : SV_POSITION;
+	float3      lightPosition :POSITION;
 };
 
 VS_OUTPUT main(V_IN input)
 {
 	VS_OUTPUT output;
 
-	output.pos = mul(input.pos, WVP).xyzw;
+	float4 localH = float4(input.pos.xyz, 1);
+
+	localH = mul(localH, worldMatrix);
+	localH = mul(localH, WVP);
+
+
+	output.pos = localH;
 	output.wPos = mul(input.pos, worldMatrix).xyzw;
 	output.normal = mul( float4(input.nrm,1.0f), worldMatrix).xyzw;
-
+	
 	output.TexCoord = input.uvm;
-
+	output.lightPosition = lightPosition_in;
 
 	return output;
 }
-
-//
-//cbuffer OBJECT : register(b0)
-//{
-//	float4x4 worldMatrix;
-//}
-//cbuffer SCENE : register(b1) // slot
-//{
-//	float4x4 viewMatrix;
-//	float4x4 projectionMatrix;
-//}
-//V_OUT main(V_IN input )
-//{
-//	V_OUT output = (V_OUT)0;
-//	// ensures translation is preserved during matrix multiply  
-//	float4 localH = float4(input.pos.xyz, 1);
-//		// move local space vertex from vertex buffer into world space.
-//		localH = mul(localH, worldMatrix);
-//
-//	// TODO: Move into view space, then projection space
-//	localH = mul(localH, viewMatrix);
-//	localH = mul(localH, projectionMatrix);
-//	
-//	float4 lightNormals = float4(input.nrm, 1);
-//	output.normal = mul(input.nrm, worldMatrix);
-//	
-//	output.col = float4(input.uvm, 0);
-//	
-//	output.posH = localH;
-//	output.view = float3x3(	viewMatrix._11, viewMatrix._12, viewMatrix._13,
-//							viewMatrix._21, viewMatrix._22, viewMatrix._23,
-//							viewMatrix._31, viewMatrix._32, viewMatrix._33);
-//	return output; // send projected vertex to the rasterizer stage
-//}
-//

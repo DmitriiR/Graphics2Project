@@ -35,7 +35,7 @@ cbuffer OBJECT : register(b0)
 struct SKYMAP_VS_OUTPUT	
 {
 	float4 Pos : SV_POSITION;
-	float4 texCoord : TEXCOORD;
+	float3 texCoord : TEXCOORD;
 	
 };
 
@@ -44,7 +44,8 @@ SKYMAP_VS_OUTPUT main(float3 inPos : POS, float3 inTexCoord : UVM, float3 normal
 	SKYMAP_VS_OUTPUT output = (SKYMAP_VS_OUTPUT)0;
 
 	output.Pos = mul(float4(inPos, 1.0f), WVP).xyzw;
-	output.texCoord = float4(inPos, 1.0f);
+//	output.Pos = mul(output.Pos, worldMatrix).xyzw;
+	output.texCoord = float3(inPos);
 
 	return output;
 }

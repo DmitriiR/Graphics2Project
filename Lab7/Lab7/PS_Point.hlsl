@@ -25,7 +25,7 @@ texture2D baseTexture : register(t0); // first texture
 SamplerState filters[2] : register(s0); // filter 0 using CLAMP, filter 1 using WRAP
 
 
-float4 main(float4 pos : POS, float3 uvm : UVM ,float3 nrm : NRM ) : SV_TARGET
+float4 main(float4 wPos : POS, float3 uvm : UVM ,float3 nrm : NRM,float4 pos : SV_POSITION, float3 lightPosition : POSITION ) : SV_TARGET
 {
 
 	float4 baseColor = baseTexture.Sample(filters[0], uvm.xy);
@@ -34,7 +34,7 @@ float4 main(float4 pos : POS, float3 uvm : UVM ,float3 nrm : NRM ) : SV_TARGET
 
 	float4 finalColor = baseColor;
 
-	float3 toLight = float3(0.0f, 1.0f, 0.0f) - pos.xyz;
+	float3 toLight = lightPosition - wPos.xyz;
 	 
     float4 lightColor = float4(1.0f, 0.3f, 0.3f, 1.0f);
 	
