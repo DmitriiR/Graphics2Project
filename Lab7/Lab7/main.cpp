@@ -211,6 +211,18 @@ class DEMO_APP
 	// end skybox
 
 
+	/// with DAN !
+
+	struct OBJECT
+	{
+		XMMATRIX world;
+	};
+	struct SCENE
+	{
+		XMMATRIX view;
+		XMMATRIX projection;
+	};
+
 
 
 	struct Light
@@ -257,7 +269,8 @@ class DEMO_APP
 		float padding[2];
 	};
 
-	struct WorldBuffer {
+	struct WorldBuffer 
+	{
 		XMFLOAT4X4 worldMatrix;
 	};
 
@@ -495,6 +508,10 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 /	////// get TEXTURE from file 
 /	SAFE_RELEASE(tex);// !!!
 */
+
+
+
+
 	
 	/////////////////////////////////////////////////////////////////////////////////
 	// Textures 
@@ -559,7 +576,7 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// ANTIALISING 
+	// rasterizer state // put this into a serparate function
 	D3D11_RASTERIZER_DESC rasterizer_Description;
 	ZeroMemory(&rasterizer_Description, sizeof(rasterizer_Description));
 	rasterizer_Description.AntialiasedLineEnable = true;
@@ -600,12 +617,15 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	cmdesc.FillMode = D3D11_FILL_SOLID;
 	
 	cmdesc.CullMode = D3D11_CULL_BACK;
-
+	cmdesc.DepthBias = 0.0f;
+	cmdesc.DepthClipEnable = true;
 	cmdesc.FrontCounterClockwise = true;
 	hr = device->CreateRasterizerState(&cmdesc, &CCWcullMode);
 
 	cmdesc.FrontCounterClockwise = false;
 	hr = device->CreateRasterizerState(&cmdesc, &CWcullMode);
+
+
 
 	//*******************************************************
 	// Member function for window resize 
@@ -700,8 +720,14 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 
 	device->CreateBuffer(&constBufferDesc_LightPositiong, nullptr, &constantBuffer_lightPosition);
 
+	XMVECTOR eyePos = XMVectorSet();
+	XMVECTOR focusPos;
+	XMVECTOR worl
 
-
+	m_skyboxData.world = XMMatrixIdentity();
+	m_sceneData.projection = XMMatrixPerspectiveFovLH(
+		XMConvertToRadians()
+		);
 }
 
 //************************************************************
@@ -711,15 +737,40 @@ D3D11_INPUT_ELEMENT_DESC vLayout[] =
 bool DEMO_APP::Run()
 {
 
+
+
+	// center 
+
+	XMmatic ciew matric_copy = MMatrixInvers(null, m_scenedata.view);
+	m_Skybox.word = XMmatri
+
+		viewmatrix_copy.r[3].m128_f32[0];
+	viewmatrix_copy.r[3].m128_f32[1];
+	viewmatrix_copy.r[3].m128_f32[2];
+
+
+
+	D3D11_BUFFER_DESC dext
+		indexBuffer->GetBufferDescription(dext);
+	amount to drwa = dext.bytewidth / sizeof(Onject-Vert)
+
+		// create sampler state
+
+
+
 	deviceContext->IASetInputLayout(pInputLayout);
 
 	deviceContext->OMSetRenderTargets(1, &renderTargetView, pDSV); // this is there the Z bugger will go 
+
+
+
+
+
 
 	////////////////// BACKGROUND COLOR reset
 	float color_array[4] = { 0, 0, 0.1f, 0.1f };
 
 	deviceContext->ClearRenderTargetView(renderTargetView, color_array);
-
 	// Create the depth stencil view
 	deviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 1);
 
@@ -732,6 +783,33 @@ bool DEMO_APP::Run()
 	deviceContext->OMSetBlendState(0, 0, 0xffffffff);
 	//Set the blend state for transparent objects
 	deviceContext->OMSetBlendState(Transparency, blendFactor, 0xffffffff);
+
+	
+	/// with DAN
+	// set index buffer 
+	deviceContext->IASetVertexBuffers(0,1, 
+		// set vertex puffet
+	//  
+//		set input layont input layout 
+
+// IASetVerte
+
+// set the vertex shaders
+// set pixel shader
+// set constsnt buffers
+// 
+
+
+	const UINT stride = sizeof(OBJ_VERT);
+	UINT offest = 0;
+	UINT offset;
+
+
+
+
+
+
+
 
 
 	// LIGHT ////////////////////////////////////////////////////////////////////////////
@@ -774,13 +852,11 @@ bool DEMO_APP::Run()
 	Translation = XMMatrixIdentity();
 	Translation = XMMatrixTranslation(XMVectorGetX(camPosition), XMVectorGetY(camPosition), XMVectorGetZ(camPosition));
 	SV_Skybox_World = Scale * Translation;
-
 	//SV_Skybox_World =  camRotationMatrix * SV_Skybox_World ;
 	//XMMATRIX sky_Matrix  = sphereWorld * SV_ViewMatrix * SV_Perspective;
 
 	XMMATRIX WVP = SV_Skybox_World * XMMatrixInverse(nullptr, SV_ViewMatrix) * SV_Perspective;
-	//XMMATRIX WVP = SV_Perspective * XMMatrixInverse(nullptr, SV_ViewMatrix) * SV_Skybox_World;
-
+//  XMMATRIX WVP = SV_Perspective * XMMatrixInverse(nullptr, SV_ViewMatrix) * SV_Skybox_World;
 //	XMMATRIX WVP = XMMatrixIdentity();//SV_Perspective; //SV_ViewMatrix;// SV_ViewMatrix * SV_Perspective * SV_Skybox_World;
 
 	//sky_Matrix = XMMatrixTranspose(sky_Matrix);
